@@ -40,7 +40,7 @@ if db_sheets:
         search_query = st.text_input("Masukkan Nama Calon Nasabah:", placeholder="Contoh: AGUNG GUNARDI")
         threshold = st.sidebar.slider("Ambang Kemiripan Minimal (%)", 50, 100, 85)
     else:
-        search_query = st.text_input("Masukkan NIK atau Nomor Paspor:", placeholder="Contoh: D 000974")
+        search_query = st.text_input("Masukkan NIK atau Nomor Paspor Calon Nasabah:", placeholder="Contoh: D 000974")
         st.sidebar.info("NIK wajib 16 digit. Paspor bebas.")
 
     # 4. LOGIKA PENCARIAN
@@ -107,7 +107,7 @@ if db_sheets:
                     found_any_global = True
                     all_results_for_download.append(matches)
                     
-                    with st.expander(f"🚩 SHEET: {sheet_name} (Ditemukan {len(matches)} data)", expanded=True):
+                    with st.expander(f"🚩 HASIL DATABASE: {sheet_name} (Ditemukan {len(matches)} data)", expanded=True):
                         st.dataframe(matches, use_container_width=True)
 
         # 5. FITUR DOWNLOAD
