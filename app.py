@@ -8,7 +8,7 @@ import io
 st.set_page_config(page_title="Screening APU, PPT, dan PPPSPM", layout="wide")
 
 st.title("🔍 Screening APU, PPT, dan PPPSPM")
-st.write("Mencari data nasabah pada Database Internal (database.xlsx)")
+st.write("Mencari data pada Database Internal (database.xlsx)")
 
 # 2. FUNGSI LOAD DATA
 @st.cache_data
@@ -47,15 +47,17 @@ if db_sheets:
     if search_query:
         query_clean = " ".join(search_query.split()).lower()
         found_any_global = False
-        all_results_for_download = [] # Untuk menampung semua temuan dari semua sheet
+        all_results_for_download = [] 
         
         # Validasi NIK
         if metode == "NIK / Nomor Paspor":
-            if search_query.strip().isdigit() and len(search_query.strip()) != 16:
-                st.error(f"❌ NIK harus 16 digit! (Input: {len(search_query.strip())} digit)")
+            input_val = search_query.strip()
+            if input_val.isdigit() and len(input_val) != 16:
+                st.error(f"❌ NIK harus 16 digit! (Input: {len(input_val)} digit)")
                 st.stop()
         
         st.divider()
+        # Daftar sheet yang akan di-scan
         target_sheets = ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']
         
         for sheet_name in target_sheets:
@@ -66,7 +68,7 @@ if db_sheets:
                     found_cols = []
                     max_score_in_row = 0
                     
-                    # Tentukan kolom mana yang akan discan
+                    # Pilih kolom scan berdasarkan metode
                     if metode == "Nama":
                         cols_to_scan = [c for c in df.columns if 'nama' in c.lower()]
                     else:
@@ -78,28 +80,28 @@ if db_sheets:
                             teks_db = " ".join(str(val).split()).lower()
                             
                             if metode == "Nama":
-                                # Pakai token_sort_ratio sesuai permintaan sebelumnya
+                                # Pakai token_sort_ratio agar presisi
                                 score = fuzz.token_sort_ratio(query_clean, teks_db)
                                 if score >= threshold:
                                     if score > max_score_in_row: max_score_in_row = score
                                     found_cols.append(f"{col_name} ({score}%)")
                             else:
-                                # NIK/Paspor Exact Match
+                                # Exact match untuk identitas
                                 if query_clean == teks_db:
                                     max_score_in_row = 100
                                     found_cols.append(f"{col_name} (COCOK)")
                                     
                     return max_score_in_row, ", ".join(found_cols)
 
-                # Jalankan pengecekan
+                # Jalankan pengecekan baris
                 res_match = df.apply(lambda r: pd.Series(check_row_match(r)), axis=1)
                 
                 # Masukkan kolom STATUS_KOLOM_ALIAS di paling kiri
                 df.insert(0, 'STATUS_KOLOM_ALIAS', res_match[1])
-                df.insert(0, 'SHEET_SUMBER', sheet_name)
                 
-                # Filter hasil yang cocok
-                matches = df[res_match[0] >= (threshold if metode == "Nama" else 100)].copy()
+                # Filter hanya yang memenuhi threshold
+                limit = threshold if metode == "Nama" else 100
+                matches = df[res_match[0] >= limit].copy()
                 
                 if not matches.empty:
                     found_any_global = True
@@ -108,7 +110,7 @@ if db_sheets:
                     with st.expander(f"🚩 SHEET: {sheet_name} (Ditemukan {len(matches)} data)", expanded=True):
                         st.dataframe(matches, use_container_width=True)
 
-        # 5. FITUR DOWNLOAD (Jika ada hasil)
+        # 5. FITUR DOWNLOAD
         if found_any_global:
             st.divider()
             final_report = pd.concat(all_results_for_download, ignore_index=True)
@@ -118,13 +120,13 @@ if db_sheets:
                 final_report.to_excel(writer, index=False, sheet_name='Hasil_Screening')
             
             st.download_button(
-                label="📥 Download Semua Hasil Screening (Excel)",
+                label="📥 Download Hasil Screening (Excel)",
                 data=output.getvalue(),
                 file_name=f"Hasil_Screening_{search_query}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
             
         if not found_any_global:
-            st.warning(f"HASIL NIHIL: Data '{search_query}' tidak ditemukan di database.")
+            st.warning(f"HASIL NIHIL: Data '{search_query}' tidak ditemukan di database manapun.")
 else:
-    st.error(f"File '{NAMA_FILE_DATABASE}' tidak ditemukan di GitHub!")
+    st.error(f"Database tidak tersedia. Pastikan '{NAMA_FILE_DATABASE}' sudah diupload ke GitHub.")
