@@ -1,65 +1,74 @@
 import streamlit as st
 import pandas as pd
+from thefuzz import fuzz
 import os
 
 # 1. Konfigurasi Tampilan
 st.set_page_config(page_title="Compliance Screening", layout="wide")
 
-st.title("🔍 Database Screening Terpadu")
-st.write("Sistem otomatis memeriksa database JUDOL, DTTOT, DPPSPM, dan SIPENDAR.")
+st.title("🔍 Database Screening (Fuzzy Search)")
+st.write("Sistem akan mencari nama dengan tingkat kemiripan tertinggi.")
 
-# 2. Fungsi Membaca File yang Tersimpan di GitHub
+# 2. Fungsi Load Data
 @st.cache_data
 def load_internal_data(file_path):
-    try:
-        # Membaca seluruh sheet dalam file yang ada di repository
-        db_sheets = pd.read_excel(file_path, sheet_name=None)
-        return db_sheets
-    except Exception as e:
-        st.error(f"Error: File '{file_path}' tidak ditemukan di server atau format salah.")
-        return None
+    if os.path.exists(file_path):
+        return pd.read_excel(file_path, sheet_name=None)
+    return None
 
-# Tentukan nama file sesuai yang kamu upload ke GitHub tadi
 NAMA_FILE_DATABASE = "database.xlsx" 
+db_sheets = load_internal_data(NAMA_FILE_DATABASE)
 
-if os.path.exists(NAMA_FILE_DATABASE):
-    db_sheets = load_internal_data(NAMA_FILE_DATABASE)
+if db_sheets:
+    # 3. Input Pencarian
+    search_query = st.text_input("Masukkan Nama Nasabah:", placeholder="Contoh: Budi Santoso")
     
-    # 3. Input Nama yang Dicari
-    search_query = st.text_input("Masukkan Nama Nasabah:", placeholder="Ketik nama di sini...")
+    # Slider untuk mengatur sensitivitas (opsional)
+    threshold = st.sidebar.slider("Ambang Kemiripan Minimal (%)", 50, 100, 80)
 
     if search_query:
         query = search_query.strip().lower()
         found_any = False
         
         st.divider()
-        st.subheader(f"Hasil Pencarian untuk: '{search_query}'")
-
-        # Daftar sheet yang wajib ada
         target_sheets = ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']
         
         for sheet_name in target_sheets:
             if sheet_name in db_sheets:
-                df = db_sheets[sheet_name]
+                df = db_sheets[sheet_name].copy()
                 
-                # Logika penyisiran seluruh kolom (nama, nama1, nama2, dst)
-                mask = df.apply(lambda row: row.astype(str).str.lower().str.contains(query, na=False).any(), axis=1)
-                result = df[mask]
+                # Fungsi untuk menghitung skor kemiripan tertinggi dalam satu baris
+                def hitung_skor(row):
+                    # Ambil semua isi sel dalam baris sebagai string
+                    teks_baris = row.astype(str).tolist()
+                    # Cari skor tertinggi di antara semua kolom nama
+                    skor_maks = 0
+                    for teks in teks_baris:
+                        # Menggunakan token_set_ratio agar lebih akurat untuk nama yang terbalik
+                        skor = fuzz.token_set_ratio(query, teks.lower())
+                        if skor > skor_maks:
+                            skor_maks = skor
+                    return skor_maks
+
+                # Tambahkan Kolom Tingkat Kemiripan di paling depan
+                df.insert(0, 'Tingkat Kemiripan (%)', df.apply(hitung_skor, axis=1))
+                
+                # Filter data berdasarkan ambang batas (threshold)
+                result = df[df['Tingkat Kemiripan (%)'] >= threshold].sort_values(by='Tingkat Kemiripan (%)', ascending=False)
 
                 if not result.empty:
                     found_any = True
                     with st.expander(f"🚩 TERDETEKSI DI SHEET: {sheet_name}", expanded=True):
-                        st.warning(f"Ditemukan {len(result)} data yang cocok.")
+                        st.info(f"Ditemukan {len(result)} data dengan kemiripan di atas {threshold}%")
+                        # Menampilkan tabel
                         st.dataframe(result, use_container_width=True)
-            else:
-                st.sidebar.error(f"Sheet '{sheet_name}' tidak ada dalam file.")
-
+            
         if not found_any:
-            st.success("✅ HASIL NIHIL: Nama tidak ditemukan di database.")
+            st.success("✅ HASIL NIHIL: Tidak ada nama dengan kemiripan yang cukup kuat.")
             st.balloons()
 else:
-    st.error(f"File '{NAMA_FILE_DATABASE}' belum di-upload ke GitHub!")
+    st.error(f"File '{NAMA_FILE_DATABASE}' tidak ditemukan di GitHub!")
 
-# Info Status di Sidebar
-st.sidebar.success("✅ Database Terhubung (Internal)")
-st.sidebar.info("Untuk update data, silakan upload file baru ke GitHub dengan nama yang sama.")
+st.sidebar.markdown("---")
+st.sidebar.write("**Tips:**")
+st.sidebar.write("Jika hasil terlalu banyak, naikkan ambang kemiripan ke 90% atau 100% (Exact Match).")
