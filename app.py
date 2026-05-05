@@ -7,7 +7,7 @@ import os
 st.set_page_config(page_title="Compliance Screening Pro", layout="wide")
 
 st.title("🔍 Database Screening Multi-Metode")
-st.write("Pilih metode pencarian: Nama (Fuzzy) atau NIK (Exact).")
+st.write("Metode: Nama (Fuzzy) atau Identitas NIK/Paspor (Exact).")
 
 # 2. Fungsi Load Data
 @st.cache_data
@@ -21,20 +21,27 @@ db_sheets = load_internal_data(NAMA_FILE_DATABASE)
 
 if db_sheets:
     # 3. Pilihan Metode Pencarian
-    metode = st.radio("Pilih Metode Pencarian:", ("Nama", "NIK"), horizontal=True)
+    metode = st.radio("Pilih Metode Pencarian:", ("Nama", "NIK / Nomor Paspor"), horizontal=True)
     
     if metode == "Nama":
         search_query = st.text_input("Masukkan Nama Nasabah:", placeholder="Contoh: Iman")
         threshold = st.sidebar.slider("Ambang Kemiripan Minimal (%)", 50, 100, 90)
     else:
-        search_query = st.text_input("Masukkan NIK (16 Digit):", placeholder="Contoh: 3201xxxxxxxxxxxx")
-        st.sidebar.info("Pencarian NIK bersifat 'Exact Match' (harus sama persis) dan menyisir seluruh kolom.")
+        search_query = st.text_input("Masukkan NIK atau Nomor Paspor:", placeholder="Contoh: 3201... atau A1234xxx")
+        st.sidebar.info("NIK wajib 16 digit. Nomor Paspor bebas. Pencarian bersifat Exact Match.")
 
     if search_query:
         query = search_query.strip().lower()
         found_any = False
-        st.divider()
         
+        # VALIDASI KHUSUS IDENTITAS
+        if metode == "NIK / Nomor Paspor":
+            # Jika hanya angka (NIK), cek apakah 16 digit
+            if query.isdigit() and len(query) != 16:
+                st.error(f"❌ NIK harus 16 digit! (Inputan Anda: {len(query)} digit)")
+                st.stop() # Berhenti di sini, jangan lanjut cari
+        
+        st.divider()
         target_sheets = ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']
         
         for sheet_name in target_sheets:
@@ -45,13 +52,10 @@ if db_sheets:
                     skor_tertinggi = 0
                     kolom_ditemukan = "-"
                     
-                    # LOGIKA PENCARIAN BERDASARKAN METODE
                     if metode == "Nama":
-                        # Hanya cari di kolom yang ada unsur kata 'nama'
                         kolom_target = [c for c in df.columns if 'nama' in c.lower()]
                     else:
-                        # NIK cari di SEMUA kolom
-                        kolom_target = df.columns
+                        kolom_target = df.columns # Identitas cari di semua kolom
 
                     for col in kolom_target:
                         val = row[col]
@@ -59,14 +63,12 @@ if db_sheets:
                             teks_data = str(val).strip().lower()
                             
                             if metode == "Nama":
-                                # Logika Nama (Fuzzy/Sort Ratio)
                                 if query == teks_data:
                                     skor = 100
                                 else:
                                     skor = fuzz.token_sort_ratio(query, teks_data)
                             else:
-                                # Logika NIK (Exact Match)
-                                # Kita gunakan 100 jika sama persis, 0 jika beda
+                                # Logika Identitas (Exact)
                                 skor = 100 if query == teks_data else 0
                             
                             if skor > skor_tertinggi:
@@ -75,29 +77,26 @@ if db_sheets:
                                 
                     return pd.Series([skor_tertinggi, kolom_ditemukan])
 
-                # Jalankan fungsi
                 df[['Skor (%)', 'Terdeteksi di Kolom']] = df.apply(proses_baris, axis=1)
                 
                 # Filter hasil
                 if metode == "Nama":
                     result = df[df['Skor (%)'] >= threshold]
                 else:
-                    result = df[df['Skor (%)'] == 100] # NIK harus 100%
+                    result = df[df['Skor (%)'] == 100]
 
                 if not result.empty:
                     found_any = True
                     result = result.sort_values(by='Skor (%)', ascending=False)
-                    
-                    # Rapikan kolom
                     prio_cols = ['Skor (%)', 'Terdeteksi di Kolom']
                     other_cols = [c for c in df.columns if c not in prio_cols]
                     result = result[prio_cols + other_cols]
 
                     with st.expander(f"🚩 SHEET: {sheet_name}", expanded=True):
-                        st.success(f"Ditemukan {len(result)} kecocokan menggunakan metode {metode}.")
+                        st.success(f"Ditemukan {len(result)} kecocokan.")
                         st.dataframe(result, use_container_width=True)
             
         if not found_any:
-            st.warning(f"HASIL NIHIL: Tidak ditemukan data yang cocok untuk {metode} tersebut.")
+            st.warning(f"HASIL NIHIL: Tidak ditemukan data yang cocok.")
 else:
     st.error(f"File '{NAMA_FILE_DATABASE}' tidak ditemukan di GitHub!")
