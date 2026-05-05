@@ -7,8 +7,19 @@ import io
 # 1. KONFIGURASI HALAMAN
 st.set_page_config(page_title="Screening APU, PPT, dan PPPSPM", layout="wide")
 
+# --- KODE UNTUK SEMBUNYIKAN MENU & HEADER (Agar kodingan tidak bisa diintip) ---
+hide_st_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            </style>
+            """
+st.markdown(hide_st_style, unsafe_allow_html=True)
+
+# --- JUDUL & DESKRIPSI ---
 st.title("🔍 Screening APU, PPT, dan PPPSPM")
-st.write("Sistem secara otomatis membaca data yang diinput dan melakukan screening terhadap database APU, PPT, & PPPSPM untuk mengidentifikasi kecocokan data")
+st.write("Sistem secara otomatis melakukan screening terhadap database APU, PPT, & PPPSPM untuk mengidentifikasi kecocokan data.")
 
 # 2. FUNGSI LOAD DATA
 @st.cache_data
@@ -57,7 +68,7 @@ if db_sheets:
                 st.stop()
         
         st.divider()
-        # Daftar sheet yang akan di-scan
+        # Daftar sheet yang akan di-scan (Sesuaikan dengan nama sheet di database.xlsx kamu)
         target_sheets = ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']
         
         for sheet_name in target_sheets:
@@ -108,7 +119,7 @@ if db_sheets:
                     all_results_for_download.append(matches)
                     
                     with st.expander(f"🚩 HASIL DATABASE: {sheet_name} (Ditemukan {len(matches)} data)", expanded=True):
-                        # DITAMBAHKAN hide_index=True DI SINI
+                        # Menampilkan tabel dengan menyembunyikan kolom angka (index)
                         st.dataframe(matches, use_container_width=True, hide_index=True)
 
         # 5. FITUR DOWNLOAD
