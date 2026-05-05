@@ -4,10 +4,11 @@ from thefuzz import fuzz
 import os
 
 # 1. Konfigurasi Tampilan
-st.set_page_config(page_title="Compliance Screening Pro", layout="wide")
+st.set_page_config(page_title="Screening APU, PPT, dan PPPSPM", layout="wide")
 
-st.title("🔍 Database Screening Multi-Metode")
-st.write("Metode: Nama (Fuzzy) atau Identitas NIK/Paspor (Exact).")
+# Judul Utama Baru
+st.title("🔍 Screening APU, PPT, dan PPPSPM")
+# st.write(...) baris ini sudah saya hapus agar tampilan lebih bersih
 
 # 2. Fungsi Load Data
 @st.cache_data
@@ -52,7 +53,6 @@ if db_sheets:
                     skor_tertinggi = 0
                     kolom_ditemukan = "-"
                     
-                    # Tentukan target kolom
                     if metode == "Nama":
                         kolom_target = [c for c in df.columns if 'nama' in c.lower()]
                     else:
@@ -60,46 +60,3 @@ if db_sheets:
 
                     for col in kolom_target:
                         val = row[col]
-                        if pd.notna(val):
-                            # Bersihkan data excel dari spasi ganda untuk pencocokan
-                            teks_data = " ".join(str(val).split()).lower()
-                            
-                            if metode == "Nama":
-                                if query == teks_data:
-                                    skor = 100
-                                else:
-                                    skor = fuzz.token_sort_ratio(query, teks_data)
-                            else:
-                                # Logika Identitas (Exact setelah spasi dibersihkan)
-                                skor = 100 if query == teks_data else 0
-                            
-                            if skor > skor_tertinggi:
-                                skor_tertinggi = skor
-                                kolom_ditemukan = col
-                                
-                    return pd.Series([skor_tertinggi, kolom_ditemukan])
-
-                df[['Skor (%)', 'Terdeteksi di Kolom']] = df.apply(proses_baris, axis=1)
-                
-                # Filter hasil
-                if metode == "Nama":
-                    result = df[df['Skor (%)'] >= threshold]
-                else:
-                    result = df[df['Skor (%)'] == 100]
-
-                if not result.empty:
-                    found_any = True
-                    result = result.sort_values(by='Skor (%)', ascending=False)
-                    prio_cols = ['Skor (%)', 'Terdeteksi di Kolom']
-                    other_cols = [c for c in df.columns if c not in prio_cols]
-                    result = result[prio_cols + other_cols]
-
-                    with st.expander(f"🚩 SHEET: {sheet_name}", expanded=True):
-                        st.success(f"Ditemukan {len(result)} kecocokan.")
-                        st.dataframe(result, use_container_width=True)
-            
-        if not found_any:
-            st.warning(f"HASIL NIHIL: Data '{search_query}' tidak ditemukan.")
-            st.info("Tips: Pastikan tidak ada karakter aneh di file Excel Anda.")
-else:
-    st.error(f"File '{NAMA_FILE_DATABASE}' tidak ditemukan di GitHub!")
