@@ -6,8 +6,8 @@ import os
 # 1. Konfigurasi Tampilan
 st.set_page_config(page_title="Compliance Screening Pro", layout="wide")
 
-st.title("🔍 Database Screening (Strict Name Search)")
-st.write("Pencarian khusus pada kolom Nama, Nama1, dst. dengan identifikasi kolom.")
+st.title("🔍 Database Screening Multi-Metode")
+st.write("Pilih metode pencarian: Nama (Fuzzy) atau NIK (Exact).")
 
 # 2. Fungsi Load Data
 @st.cache_data
@@ -20,42 +20,54 @@ NAMA_FILE_DATABASE = "database.xlsx"
 db_sheets = load_internal_data(NAMA_FILE_DATABASE)
 
 if db_sheets:
-    search_query = st.text_input("Masukkan Nama Nasabah:", placeholder="Contoh: Iman")
-    threshold = st.sidebar.slider("Ambang Kemiripan Minimal (%)", 50, 100, 90)
+    # 3. Pilihan Metode Pencarian
+    metode = st.radio("Pilih Metode Pencarian:", ("Nama", "NIK"), horizontal=True)
+    
+    if metode == "Nama":
+        search_query = st.text_input("Masukkan Nama Nasabah:", placeholder="Contoh: Iman")
+        threshold = st.sidebar.slider("Ambang Kemiripan Minimal (%)", 50, 100, 90)
+    else:
+        search_query = st.text_input("Masukkan NIK (16 Digit):", placeholder="Contoh: 3201xxxxxxxxxxxx")
+        st.sidebar.info("Pencarian NIK bersifat 'Exact Match' (harus sama persis) dan menyisir seluruh kolom.")
 
     if search_query:
         query = search_query.strip().lower()
         found_any = False
-        
         st.divider()
+        
         target_sheets = ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']
         
         for sheet_name in target_sheets:
             if sheet_name in db_sheets:
                 df = db_sheets[sheet_name].copy()
                 
-                # Hanya ambil kolom yang ada unsur kata 'nama' (Case Insensitive)
-                kolom_nama = [col for col in df.columns if 'nama' in col.lower()]
-                
-                if not kolom_nama:
-                    continue
-
                 def proses_baris(row):
                     skor_tertinggi = 0
                     kolom_ditemukan = "-"
                     
-                    # Hanya looping di kolom yang masuk kriteria 'kolom_nama'
-                    for col in kolom_nama:
+                    # LOGIKA PENCARIAN BERDASARKAN METODE
+                    if metode == "Nama":
+                        # Hanya cari di kolom yang ada unsur kata 'nama'
+                        kolom_target = [c for c in df.columns if 'nama' in c.lower()]
+                    else:
+                        # NIK cari di SEMUA kolom
+                        kolom_target = df.columns
+
+                    for col in kolom_target:
                         val = row[col]
                         if pd.notna(val):
                             teks_data = str(val).strip().lower()
                             
-                            # Logika Skor Exact
-                            if query == teks_data:
-                                skor = 100
+                            if metode == "Nama":
+                                # Logika Nama (Fuzzy/Sort Ratio)
+                                if query == teks_data:
+                                    skor = 100
+                                else:
+                                    skor = fuzz.token_sort_ratio(query, teks_data)
                             else:
-                                # Logika Skor Fuzzy (Akan turun jika ada tambahan kata)
-                                skor = fuzz.token_sort_ratio(query, teks_data)
+                                # Logika NIK (Exact Match)
+                                # Kita gunakan 100 jika sama persis, 0 jika beda
+                                skor = 100 if query == teks_data else 0
                             
                             if skor > skor_tertinggi:
                                 skor_tertinggi = skor
@@ -63,27 +75,29 @@ if db_sheets:
                                 
                     return pd.Series([skor_tertinggi, kolom_ditemukan])
 
-                # Jalankan fungsi hanya pada kolom nama yang difilter
-                df[['Skor (%)', 'Terdeteksi di Kolom']] = df[kolom_nama].apply(proses_baris, axis=1)
+                # Jalankan fungsi
+                df[['Skor (%)', 'Terdeteksi di Kolom']] = df.apply(proses_baris, axis=1)
                 
-                # Filter & Sort
-                result = df[df['Skor (%)'] >= threshold].sort_values(by='Skor (%)', ascending=False)
-
-                # Rapikan urutan kolom (Info skor di depan)
-                prio_cols = ['Skor (%)', 'Terdeteksi di Kolom']
-                other_cols = [c for c in df.columns if c not in prio_cols]
-                result = result[prio_cols + other_cols]
+                # Filter hasil
+                if metode == "Nama":
+                    result = df[df['Skor (%)'] >= threshold]
+                else:
+                    result = df[df['Skor (%)'] == 100] # NIK harus 100%
 
                 if not result.empty:
                     found_any = True
+                    result = result.sort_values(by='Skor (%)', ascending=False)
+                    
+                    # Rapikan kolom
+                    prio_cols = ['Skor (%)', 'Terdeteksi di Kolom']
+                    other_cols = [c for c in df.columns if c not in prio_cols]
+                    result = result[prio_cols + other_cols]
+
                     with st.expander(f"🚩 SHEET: {sheet_name}", expanded=True):
-                        st.success(f"Ditemukan {len(result)} kecocokan pada kolom identitas.")
+                        st.success(f"Ditemukan {len(result)} kecocokan menggunakan metode {metode}.")
                         st.dataframe(result, use_container_width=True)
             
         if not found_any:
-            st.warning(f"HASIL NIHIL: Tidak ditemukan kemiripan di atas {threshold}% pada kolom Nama.")
+            st.warning(f"HASIL NIHIL: Tidak ditemukan data yang cocok untuk {metode} tersebut.")
 else:
     st.error(f"File '{NAMA_FILE_DATABASE}' tidak ditemukan di GitHub!")
-
-st.sidebar.markdown("---")
-st.sidebar.caption("Sistem saat ini hanya memindai kolom dengan header mengandung kata 'Nama'.")
