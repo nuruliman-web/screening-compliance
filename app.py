@@ -6,8 +6,8 @@ import os
 # 1. Konfigurasi Tampilan
 st.set_page_config(page_title="Compliance Screening Pro", layout="wide")
 
-st.title("🔍 Database Screening (Exact & Fuzzy)")
-st.write("Sistem pencarian presisi dengan identifikasi lokasi kolom.")
+st.title("🔍 Database Screening (Strict Name Search)")
+st.write("Pencarian khusus pada kolom Nama, Nama1, dst. dengan identifikasi kolom.")
 
 # 2. Fungsi Load Data
 @st.cache_data
@@ -34,46 +34,56 @@ if db_sheets:
             if sheet_name in db_sheets:
                 df = db_sheets[sheet_name].copy()
                 
+                # Hanya ambil kolom yang ada unsur kata 'nama' (Case Insensitive)
+                kolom_nama = [col for col in df.columns if 'nama' in col.lower()]
+                
+                if not kolom_nama:
+                    continue
+
                 def proses_baris(row):
                     skor_tertinggi = 0
                     kolom_ditemukan = "-"
                     
-                    for col_name, val in row.items():
+                    # Hanya looping di kolom yang masuk kriteria 'kolom_nama'
+                    for col in kolom_nama:
+                        val = row[col]
                         if pd.notna(val):
                             teks_data = str(val).strip().lower()
                             
-                            # LOGIKA SKOR:
-                            # 1. Cek Exact Match dulu
+                            # Logika Skor Exact
                             if query == teks_data:
                                 skor = 100
                             else:
-                                # 2. Jika tidak exact, gunakan token_sort_ratio
-                                # Ini akan memberikan skor < 100 jika ada kata tambahan (seperti 'Nurul')
+                                # Logika Skor Fuzzy (Akan turun jika ada tambahan kata)
                                 skor = fuzz.token_sort_ratio(query, teks_data)
                             
                             if skor > skor_tertinggi:
                                 skor_tertinggi = skor
-                                kolom_ditemukan = col_name
+                                kolom_ditemukan = col
                                 
                     return pd.Series([skor_tertinggi, kolom_ditemukan])
 
-                # Tambahkan dua kolom info di depan
-                df[['Skor (%)', 'Terdeteksi di Kolom']] = df.apply(proses_baris, axis=1)
+                # Jalankan fungsi hanya pada kolom nama yang difilter
+                df[['Skor (%)', 'Terdeteksi di Kolom']] = df[kolom_nama].apply(proses_baris, axis=1)
                 
-                # Filter berdasarkan threshold
+                # Filter & Sort
                 result = df[df['Skor (%)'] >= threshold].sort_values(by='Skor (%)', ascending=False)
 
-                # Pindahkan kolom info ke paling kiri agar mudah dilihat
-                cols = ['Skor (%)', 'Terdeteksi di Kolom'] + [c for c in df.columns if c not in ['Skor (%)', 'Terdeteksi di Kolom']]
-                result = result[cols]
+                # Rapikan urutan kolom (Info skor di depan)
+                prio_cols = ['Skor (%)', 'Terdeteksi di Kolom']
+                other_cols = [c for c in df.columns if c not in prio_cols]
+                result = result[prio_cols + other_cols]
 
                 if not result.empty:
                     found_any = True
                     with st.expander(f"🚩 SHEET: {sheet_name}", expanded=True):
-                        st.success(f"Ditemukan {len(result)} kecocokan.")
+                        st.success(f"Ditemukan {len(result)} kecocokan pada kolom identitas.")
                         st.dataframe(result, use_container_width=True)
             
         if not found_any:
-            st.warning(f"HASIL NIHIL: Tidak ada nama yang cocok dengan ambang batas {threshold}%.")
+            st.warning(f"HASIL NIHIL: Tidak ditemukan kemiripan di atas {threshold}% pada kolom Nama.")
 else:
     st.error(f"File '{NAMA_FILE_DATABASE}' tidak ditemukan di GitHub!")
+
+st.sidebar.markdown("---")
+st.sidebar.caption("Sistem saat ini hanya memindai kolom dengan header mengandung kata 'Nama'.")
