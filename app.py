@@ -8,7 +8,7 @@ import io
 st.set_page_config(page_title="Screening APU, PPT, dan PPPSPM", layout="wide")
 
 st.title("🔍 Screening APU, PPT, dan PPPSPM")
-st.write("Mencari data pada Database Internal (database.xlsx)")
+st.write("Sistem secara otomatis membaca data yang diinput dan melakukan screening terhadap database APU, PPT, & PPPSPM untuk mengidentifikasi kecocokan data")
 
 # 2. FUNGSI LOAD DATA
 @st.cache_data
@@ -37,7 +37,7 @@ if db_sheets:
     metode = st.radio("Pilih Metode Pencarian:", ("Nama", "NIK / Nomor Paspor"), horizontal=True)
     
     if metode == "Nama":
-        search_query = st.text_input("Masukkan Nama Nasabah:", placeholder="Contoh: AGUNG GUNARDI")
+        search_query = st.text_input("Masukkan Nama Calon Nasabah:", placeholder="Contoh: AGUNG GUNARDI")
         threshold = st.sidebar.slider("Ambang Kemiripan Minimal (%)", 50, 100, 85)
     else:
         search_query = st.text_input("Masukkan NIK atau Nomor Paspor:", placeholder="Contoh: D 000974")
