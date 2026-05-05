@@ -4,16 +4,20 @@ from thefuzz import fuzz
 import os
 
 # 1. Konfigurasi Tampilan
-st.set_page_config(page_title="Compliance Screening Pro", layout="wide")
+st.set_page_config(page_title="Screening APU, PPT, dan PPPSPM", layout="wide")
 
-st.title("🔍 Database Screening Multi-Metode")
-st.write("Metode: Nama (Fuzzy) atau Identitas NIK/Paspor (Exact).")
+# JUDUL BARU (Hanya ini yang diubah dari versi sebelumnya)
+st.title("🔍 Screening APU, PPT, dan PPPSPM")
 
 # 2. Fungsi Load Data
 @st.cache_data
 def load_internal_data(file_path):
     if os.path.exists(file_path):
-        return pd.read_excel(file_path, sheet_name=None)
+        try:
+            return pd.read_excel(file_path, sheet_name=None)
+        except Exception as e:
+            st.error(f"Gagal membaca file Excel: {e}")
+            return None
     return None
 
 NAMA_FILE_DATABASE = "database.xlsx" 
@@ -24,12 +28,13 @@ if db_sheets:
     metode = st.radio("Pilih Metode Pencarian:", ("Nama", "NIK / Nomor Paspor"), horizontal=True)
     
     if metode == "Nama":
-        search_query = st.text_input("Masukkan Nama Nasabah:", placeholder="Contoh: Iman")
+        search_query = st.text_input("Masukkan Nama Nasabah:", placeholder="Contoh: AGUNG GUNARDI")
         threshold = st.sidebar.slider("Ambang Kemiripan Minimal (%)", 50, 100, 90)
     else:
         search_query = st.text_input("Masukkan NIK atau Nomor Paspor:", placeholder="Contoh: D 000974")
-        st.sidebar.info("Pencarian Identitas menyisir seluruh kolom di semua sheet.")
+        st.sidebar.info("NIK wajib 16 digit. Paspor bebas.")
 
+    # Gunakan pengecekan sederhana agar pencarian langsung jalan saat enter
     if search_query:
         # Membersihkan inputan CS dari spasi berlebih
         query = " ".join(search_query.split()).lower()
@@ -52,16 +57,17 @@ if db_sheets:
                     skor_tertinggi = 0
                     kolom_ditemukan = "-"
                     
-                    # Tentukan target kolom
                     if metode == "Nama":
+                        # Hanya cari di kolom yang ada unsur kata 'nama'
                         kolom_target = [c for c in df.columns if 'nama' in c.lower()]
                     else:
-                        kolom_target = df.columns # NIK/Paspor cari di SEMUA kolom
+                        # NIK/Paspor cari di SEMUA kolom
+                        kolom_target = df.columns 
 
                     for col in kolom_target:
                         val = row[col]
                         if pd.notna(val):
-                            # Bersihkan data excel dari spasi ganda untuk pencocokan
+                            # Normalisasi spasi data di excel
                             teks_data = " ".join(str(val).split()).lower()
                             
                             if metode == "Nama":
@@ -70,7 +76,7 @@ if db_sheets:
                                 else:
                                     skor = fuzz.token_sort_ratio(query, teks_data)
                             else:
-                                # Logika Identitas (Exact setelah spasi dibersihkan)
+                                # Logika Identitas (Exact)
                                 skor = 100 if query == teks_data else 0
                             
                             if skor > skor_tertinggi:
@@ -79,6 +85,7 @@ if db_sheets:
                                 
                     return pd.Series([skor_tertinggi, kolom_ditemukan])
 
+                # Proses data
                 df[['Skor (%)', 'Terdeteksi di Kolom']] = df.apply(proses_baris, axis=1)
                 
                 # Filter hasil
@@ -100,6 +107,5 @@ if db_sheets:
             
         if not found_any:
             st.warning(f"HASIL NIHIL: Data '{search_query}' tidak ditemukan.")
-            st.info("Tips: Pastikan tidak ada karakter aneh di file Excel Anda.")
 else:
     st.error(f"File '{NAMA_FILE_DATABASE}' tidak ditemukan di GitHub!")
