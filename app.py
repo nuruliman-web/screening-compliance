@@ -7,9 +7,8 @@ import io
 # 1. KONFIGURASI HALAMAN
 st.set_page_config(page_title="Screening APU, PPT, dan PPPSPM", layout="wide")
 
-# JUDUL & DESKRIPSI
 st.title("🔍 Screening APU, PPT, dan PPPSPM")
-st.write("Sistem secara otomatis melakukan screening terhadap database untuk mengidentifikasi kecocokan data.")
+st.write("Sistem secara otomatis membaca data yang diinput dan melakukan screening terhadap database APU, PPT, & PPPSPM untuk mengidentifikasi kecocokan data")
 
 # 2. FUNGSI LOAD DATA
 @st.cache_data
@@ -41,14 +40,21 @@ if db_sheets:
         search_query = st.text_input("Masukkan Nama Calon Nasabah:", placeholder="Contoh: AGUNG GUNARDI")
         threshold = st.sidebar.slider("Ambang Kemiripan Minimal (%)", 50, 100, 85)
     else:
-        # Validasi NIK 16 digit dihapus agar bisa input Paspor/Teks bebas
-        search_query = st.text_input("Masukkan NIK atau Nomor Paspor Calon Nasabah:", placeholder="Contoh: D 000974 atau 3201xxx")
+        search_query = st.text_input("Masukkan NIK atau Nomor Paspor Calon Nasabah:", placeholder="Contoh: D 000974")
+        st.sidebar.info("NIK wajib 16 digit. Paspor bebas.")
 
     # 4. LOGIKA PENCARIAN
     if search_query:
         query_clean = " ".join(search_query.split()).lower()
         found_any_global = False
         all_results_for_download = [] 
+        
+        # Validasi NIK
+        if metode == "NIK / Nomor Paspor":
+            input_val = search_query.strip()
+            if input_val.isdigit() and len(input_val) != 16:
+                st.error(f"❌ NIK harus 16 digit! (Input: {len(input_val)} digit)")
+                st.stop()
         
         st.divider()
         # Daftar sheet yang akan di-scan
@@ -66,7 +72,6 @@ if db_sheets:
                     if metode == "Nama":
                         cols_to_scan = [c for c in df.columns if 'nama' in c.lower()]
                     else:
-                        # Untuk NIK/Paspor, scan SEMUA kolom di database
                         cols_to_scan = df.columns
 
                     for col_name in cols_to_scan:
@@ -75,12 +80,13 @@ if db_sheets:
                             teks_db = " ".join(str(val).split()).lower()
                             
                             if metode == "Nama":
+                                # Pakai token_sort_ratio agar presisi
                                 score = fuzz.token_sort_ratio(query_clean, teks_db)
                                 if score >= threshold:
                                     if score > max_score_in_row: max_score_in_row = score
                                     found_cols.append(f"{col_name} ({score}%)")
                             else:
-                                # Exact match untuk identitas (Bisa teks/angka)
+                                # Exact match untuk identitas
                                 if query_clean == teks_db:
                                     max_score_in_row = 100
                                     found_cols.append(f"{col_name} (COCOK)")
@@ -102,7 +108,7 @@ if db_sheets:
                     all_results_for_download.append(matches)
                     
                     with st.expander(f"🚩 HASIL DATABASE: {sheet_name} (Ditemukan {len(matches)} data)", expanded=True):
-                        # hide_index=True tetap dipakai agar rapi
+                        # DITAMBAHKAN hide_index=True DI SINI
                         st.dataframe(matches, use_container_width=True, hide_index=True)
 
         # 5. FITUR DOWNLOAD
@@ -124,4 +130,4 @@ if db_sheets:
         if not found_any_global:
             st.warning(f"HASIL NIHIL: Data '{search_query}' tidak ditemukan di database manapun.")
 else:
-    st.error(f"Database tidak tersedia. Pastikan '{NAMA_FILE_DATABASE}' sudah diupload.")
+    st.error(f"Database tidak tersedia. Pastikan '{NAMA_FILE_DATABASE}' sudah diupload ke GitHub.")
