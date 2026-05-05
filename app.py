@@ -27,19 +27,19 @@ if db_sheets:
         search_query = st.text_input("Masukkan Nama Nasabah:", placeholder="Contoh: Iman")
         threshold = st.sidebar.slider("Ambang Kemiripan Minimal (%)", 50, 100, 90)
     else:
-        search_query = st.text_input("Masukkan NIK atau Nomor Paspor:", placeholder="Contoh: 3201... atau A1234xxx")
-        st.sidebar.info("NIK wajib 16 digit. Nomor Paspor bebas. Pencarian bersifat Exact Match.")
+        search_query = st.text_input("Masukkan NIK atau Nomor Paspor:", placeholder="Contoh: D 000974")
+        st.sidebar.info("Pencarian Identitas menyisir seluruh kolom di semua sheet.")
 
     if search_query:
-        query = search_query.strip().lower()
+        # Membersihkan inputan CS dari spasi berlebih
+        query = " ".join(search_query.split()).lower()
         found_any = False
         
-        # VALIDASI KHUSUS IDENTITAS
+        # Validasi NIK jika hanya angka
         if metode == "NIK / Nomor Paspor":
-            # Jika hanya angka (NIK), cek apakah 16 digit
-            if query.isdigit() and len(query) != 16:
-                st.error(f"❌ NIK harus 16 digit! (Inputan Anda: {len(query)} digit)")
-                st.stop() # Berhenti di sini, jangan lanjut cari
+            if search_query.strip().isdigit() and len(search_query.strip()) != 16:
+                st.error(f"❌ NIK harus 16 digit! (Inputan Anda: {len(search_query.strip())} digit)")
+                st.stop()
         
         st.divider()
         target_sheets = ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']
@@ -52,15 +52,17 @@ if db_sheets:
                     skor_tertinggi = 0
                     kolom_ditemukan = "-"
                     
+                    # Tentukan target kolom
                     if metode == "Nama":
                         kolom_target = [c for c in df.columns if 'nama' in c.lower()]
                     else:
-                        kolom_target = df.columns # Identitas cari di semua kolom
+                        kolom_target = df.columns # NIK/Paspor cari di SEMUA kolom
 
                     for col in kolom_target:
                         val = row[col]
                         if pd.notna(val):
-                            teks_data = str(val).strip().lower()
+                            # Bersihkan data excel dari spasi ganda untuk pencocokan
+                            teks_data = " ".join(str(val).split()).lower()
                             
                             if metode == "Nama":
                                 if query == teks_data:
@@ -68,7 +70,7 @@ if db_sheets:
                                 else:
                                     skor = fuzz.token_sort_ratio(query, teks_data)
                             else:
-                                # Logika Identitas (Exact)
+                                # Logika Identitas (Exact setelah spasi dibersihkan)
                                 skor = 100 if query == teks_data else 0
                             
                             if skor > skor_tertinggi:
@@ -97,6 +99,7 @@ if db_sheets:
                         st.dataframe(result, use_container_width=True)
             
         if not found_any:
-            st.warning(f"HASIL NIHIL: Tidak ditemukan data yang cocok.")
+            st.warning(f"HASIL NIHIL: Data '{search_query}' tidak ditemukan.")
+            st.info("Tips: Pastikan tidak ada karakter aneh di file Excel Anda.")
 else:
     st.error(f"File '{NAMA_FILE_DATABASE}' tidak ditemukan di GitHub!")
