@@ -108,7 +108,8 @@ if db_sheets:
                     all_results_for_download.append(matches)
                     
                     with st.expander(f"🚩 HASIL DATABASE: {sheet_name} (Ditemukan {len(matches)} data)", expanded=True):
-                        st.dataframe(matches, use_container_width=True)
+                        # DITAMBAHKAN hide_index=True DI SINI
+                        st.dataframe(matches, use_container_width=True, hide_index=True)
 
         # 5. FITUR DOWNLOAD
         if found_any_global:
