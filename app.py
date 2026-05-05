@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from thefuzz import fuzz
+from thefuzz import fuzz # Pastikan cara import seperti ini
 import os
 
 # 1. Konfigurasi Tampilan
@@ -20,10 +20,7 @@ NAMA_FILE_DATABASE = "database.xlsx"
 db_sheets = load_internal_data(NAMA_FILE_DATABASE)
 
 if db_sheets:
-    # 3. Input Pencarian
     search_query = st.text_input("Masukkan Nama Nasabah:", placeholder="Contoh: Budi Santoso")
-    
-    # Slider untuk mengatur sensitivitas (opsional)
     threshold = st.sidebar.slider("Ambang Kemiripan Minimal (%)", 50, 100, 80)
 
     if search_query:
@@ -37,30 +34,29 @@ if db_sheets:
             if sheet_name in db_sheets:
                 df = db_sheets[sheet_name].copy()
                 
-                # Fungsi untuk menghitung skor kemiripan tertinggi dalam satu baris
+                # FUNGSI PERBAIKAN: Menghindari AttributeError
                 def hitung_skor(row):
-                    # Ambil semua isi sel dalam baris sebagai string
-                    teks_baris = row.astype(str).tolist()
-                    # Cari skor tertinggi di antara semua kolom nama
                     skor_maks = 0
-                    for teks in teks_baris:
-                        # Menggunakan token_set_ratio agar lebih akurat untuk nama yang terbalik
-                        skor = fuzz.token_set_ratio(query, teks.lower())
-                        if skor > skor_maks:
-                            skor_maks = skor
+                    for val in row:
+                        # Cek jika data tidak kosong dan bisa dikonversi ke string
+                        if pd.notna(val):
+                            teks = str(val).lower()
+                            # Gunakan token_set_ratio
+                            skor = fuzz.token_set_ratio(query, teks)
+                            if skor > skor_maks:
+                                skor_maks = skor
                     return skor_maks
 
-                # Tambahkan Kolom Tingkat Kemiripan di paling depan
+                # Tambahkan Kolom di paling depan
                 df.insert(0, 'Tingkat Kemiripan (%)', df.apply(hitung_skor, axis=1))
                 
-                # Filter data berdasarkan ambang batas (threshold)
+                # Filter & Urutkan
                 result = df[df['Tingkat Kemiripan (%)'] >= threshold].sort_values(by='Tingkat Kemiripan (%)', ascending=False)
 
                 if not result.empty:
                     found_any = True
                     with st.expander(f"🚩 TERDETEKSI DI SHEET: {sheet_name}", expanded=True):
                         st.info(f"Ditemukan {len(result)} data dengan kemiripan di atas {threshold}%")
-                        # Menampilkan tabel
                         st.dataframe(result, use_container_width=True)
             
         if not found_any:
@@ -68,7 +64,3 @@ if db_sheets:
             st.balloons()
 else:
     st.error(f"File '{NAMA_FILE_DATABASE}' tidak ditemukan di GitHub!")
-
-st.sidebar.markdown("---")
-st.sidebar.write("**Tips:**")
-st.sidebar.write("Jika hasil terlalu banyak, naikkan ambang kemiripan ke 90% atau 100% (Exact Match).")
