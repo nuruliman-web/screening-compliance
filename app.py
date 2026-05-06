@@ -8,7 +8,7 @@ from datetime import datetime
 # 1. KONFIGURASI HALAMAN
 st.set_page_config(page_title="Screening System", layout="wide", initial_sidebar_state="collapsed")
 
-# 2. CSS CUSTOM
+# 2. CSS CUSTOM (TANPA STYLING WARNA TABEL)
 st.markdown("""
     <style>
     header[data-testid="stHeader"] { visibility: hidden; height: 0%; }
@@ -98,23 +98,27 @@ with tabs[0]:
                     df = db[sn].copy()
                     
                     def find_match(row):
-                        best_s = 0
-                        col_target = "-"
-                        # Fokus cari kolom yang ada kata 'nama'
+                        matches_info = []
+                        max_score = 0
+                        
+                        # Tentukan kolom mana yang dicek
                         check_cols = [c for c in df.columns if 'nama' in c.lower()] if metode == "Nama" else df.columns
                         
                         for c in check_cols:
                             val = " ".join(str(row[c]).split()).lower()
                             if metode == "Nama":
                                 s = fuzz.token_sort_ratio(q_clean, val)
-                                if s > best_s: best_s, col_target = s, c
+                                if s >= threshold:
+                                    matches_info.append(f"{c} ({s}%)")
+                                    if s > max_score: max_score = s
                             else:
-                                if q_clean == val: best_s, col_target = 100, c
+                                if q_clean == val:
+                                    matches_info.append(f"{c} (Match)")
+                                    max_score = 100
                         
-                        limit = threshold if metode == "Nama" else 100
-                        if best_s >= limit:
-                            return pd.Series([best_s, f"Match {best_s}% pada '{col_target}'"])
-                        return pd.Series([0, "-"])
+                        if max_score > 0:
+                            return pd.Series([max_score, "Match pada: " + ", ".join(matches_info)])
+                        return pd.Series([0, "-"] )
 
                     df[['_score', 'ALASAN MATCH']] = df.apply(find_match, axis=1)
                     match = df[df['_score'] > 0].copy()
@@ -123,20 +127,18 @@ with tabs[0]:
                         found = True
                         match = match.sort_values('_score', ascending=False)
                         
-                        # TENTUKAN TARGET KOLOM NAMA UNTUK DIWARNAI (STABIL)
-                        nama_cols = [c for c in match.columns if 'nama' in c.lower()]
+                        # PROSES PINDAH KOLOM KE PALING KIRI
+                        # Ambil semua kolom kecuali skor internal dan Alasan Match
+                        cols = [c for c in match.columns if c not in ['_score', 'ALASAN MATCH']]
+                        # Susun ulang: Alasan Match dulu, baru kolom lainnya
+                        new_order = ['ALASAN MATCH'] + cols
+                        display_df = match[new_order]
                         
-                        # Hapus skor internal agar tabel bersih
-                        display_df = match.drop(columns=['_score'])
                         results_to_export.append(display_df)
                         
                         with st.expander(f"🚩 Database: {sn}", expanded=True):
-                            # STYLING: Hanya warnai kolom yang namanya mengandung 'NAMA'
-                            st.dataframe(
-                                display_df.style.applymap(lambda x: 'color: red; font-weight: bold', subset=nama_cols),
-                                hide_index=True, 
-                                use_container_width=True
-                            )
+                            # Tampilkan tabel polos (Tanpa Styling Warna agar tidak Error)
+                            st.dataframe(display_df, hide_index=True, use_container_width=True)
 
             if found and can_download:
                 st.divider()
