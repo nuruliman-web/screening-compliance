@@ -16,14 +16,12 @@ LINK_SHEETS = {
     "SIPENDAR": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTwj6BDBGvo9yWRYMkPGNxPi9KtLrbU8qT8zA5VdiogRlp1JoxBDADyh3xF2gWROuPS0pBujoYiKUn-/pub?gid=288835560&single=true&output=csv"
 }
 
-# 3. CSS CUSTOM (Hapus background biru, teks hitam besar)
+# 3. CSS CUSTOM
 st.markdown("""
     <style>
     header[data-testid="stHeader"] { visibility: hidden; height: 0%; }
     footer { visibility: hidden; }
     .user-info { color: black !important; font-weight: bold; margin-bottom: 5px; }
-    
-    /* Desain Banner Tanpa Background */
     .header-banner-clean { 
         color: black; 
         padding: 10px; 
@@ -36,7 +34,6 @@ st.markdown("""
         height: 100%;
         letter-spacing: 1px;
     }
-    
     .block-container { padding-top: 1rem; }
     .stButton > button { width: auto; padding: 2px 15px; font-size: 12px; }
     .search-container {
@@ -60,12 +57,11 @@ st.markdown("""
 def log_activity(email, action):
     log_file = "log_aktivitas.csv"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    if os.path.exists(log_file):
-        try: pd.read_csv(log_file)
-        except: os.remove(log_file)
     new_data = pd.DataFrame([[now, email, action]], columns=["Waktu", "User", "Aktivitas"])
-    if not os.path.isfile(log_file): new_data.to_csv(log_file, index=False)
-    else: new_data.to_csv(log_file, mode='a', header=False, index=False)
+    if not os.path.isfile(log_file): 
+        new_data.to_csv(log_file, index=False)
+    else: 
+        new_data.to_csv(log_file, mode='a', header=False, index=False)
 
 # 5. LOGIN SYSTEM
 if "auth" not in st.session_state: st.session_state.auth = False
@@ -81,20 +77,19 @@ if not st.session_state.auth:
         else: st.error("Email tidak terdaftar!")
     st.stop()
 
-# 6. HEADER DENGAN TULISAN HITAM BESAR (TENGAH KE KANAN)
-col_user, col_banner = st.columns([1, 3])
+# Hak Akses Khusus Admin Download
+is_super_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
 
+# 6. HEADER
+col_user, col_banner = st.columns([1, 3])
 with col_user:
     st.markdown(f'<p class="user-info">👤 User: {st.session_state.email_user}</p>', unsafe_allow_html=True)
     if st.button("🚪 Logout"):
         log_activity(st.session_state.email_user, "Logout")
         st.session_state.auth = False
         st.rerun()
-
 with col_banner:
-    # Teks Hitam Besar Nge-block
     st.markdown('<div class="header-banner-clean">🔍 SCREENING DATA APU, PPT, DAN PPPSPM</div>', unsafe_allow_html=True)
-
 st.divider()
 
 # 7. LOAD DATA
@@ -109,17 +104,15 @@ def load_all_databases():
             all_data[name] = df
             stats[name] = len(df)
             total += len(df)
-        except:
-            continue
+        except: continue
     return all_data, stats, total
 
 db, db_stats, total_all = load_all_databases()
 
 # 8. TABS
-is_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
-tabs = st.tabs(["🔍 Screening Nasabah", "📜 Log Admin"]) if is_admin else st.tabs(["🔍 Screening Nasabah"])
+tabs = st.tabs(["🔍 Screening Nasabah", "📜 Log Admin"]) if is_super_admin else st.tabs(["🔍 Screening Nasabah"])
 
-# Sisanya tetap sama...
+# --- TAB SCREENING ---
 with tabs[0]:
     st.markdown('<div class="search-container">', unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 2, 2])
@@ -132,6 +125,7 @@ with tabs[0]:
         q_clean = " ".join(query.split()).lower()
         found = False
         results_to_export = []
+        
         for sn, df_data in db.items():
             def find_match(row):
                 matches_info = []
@@ -151,9 +145,11 @@ with tabs[0]:
                 if max_score > 0:
                     return pd.Series([max_score, "Match pada: " + ", ".join(matches_info)])
                 return pd.Series([0, "-"])
+
             df_temp = df_data.copy()
             df_temp[['_score', 'ALASAN MATCH']] = df_temp.apply(find_match, axis=1)
             match = df_temp[df_temp['_score'] > 0].copy()
+            
             if not match.empty:
                 found = True
                 match = match.sort_values('_score', ascending=False)
@@ -162,12 +158,22 @@ with tabs[0]:
                 results_to_export.append(display_df)
                 with st.expander(f"🚩 Database: {sn}", expanded=True):
                     st.dataframe(display_df, hide_index=True, use_container_width=True)
+
+        # TOMBOL DOWNLOAD HASIL PENCARIAN (KHUSUS IMAN)
+        if found and is_super_admin:
+            st.divider()
+            final_df = pd.concat(results_to_export)
+            buf = io.BytesIO()
+            with pd.ExcelWriter(buf) as w: final_df.to_excel(w, index=False)
+            st.download_button("📥 Download Hasil Screening (Excel)", buf.getvalue(), "Hasil_Pencarian.xlsx", use_container_width=True)
+        
         if query and not found:
             st.warning("Data tidak ditemukan di semua database.")
 
-if is_admin:
+# --- TAB LOG & STATS ---
+if is_super_admin:
     with tabs[1]:
-        st.subheader("📊 Statistik Database (4 Sheets)")
+        st.subheader("📊 Statistik Database")
         if db_stats:
             cols = st.columns(len(db_stats) + 1)
             for i, (name, count) in enumerate(db_stats.items()):
@@ -175,6 +181,14 @@ if is_admin:
                     st.markdown(f'<div class="stat-card"><small>{name}</small><br><strong>{count:,}</strong></div>', unsafe_allow_html=True)
             with cols[-1]:
                 st.markdown(f'<div class="stat-card" style="background-color: #0068c9; color: white;"><small>TOTAL DATA</small><br><strong>{total_all:,}</strong></div>', unsafe_allow_html=True)
+        
         st.divider()
+        st.subheader("📜 Log Aktivitas User")
         if os.path.exists("log_aktivitas.csv"):
-            st.dataframe(pd.read_csv("log_aktivitas.csv").iloc[::-1], use_container_width=True, hide_index=True)
+            log_df = pd.read_csv("log_aktivitas.csv")
+            st.dataframe(log_df.iloc[::-1], use_container_width=True, hide_index=True)
+            
+            # TOMBOL DOWNLOAD LOG (KHUSUS IMAN)
+            buf_log = io.BytesIO()
+            with pd.ExcelWriter(buf_log) as w: log_df.to_excel(w, index=False)
+            st.download_button("📥 Download Log Aktivitas (Excel)", buf_log.getvalue(), "Log_Aktivitas.xlsx", use_container_width=True)
