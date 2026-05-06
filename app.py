@@ -11,15 +11,28 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# CSS Minimalis (Ngebersihin menu kanan aja, sidebar biarin standar biar nggak ilang)
+# 2. CSS ANTI-BIRU & ANTI-KLIK
+# Kita paksa warna teks jadi putih/abu dan hilangkan pointer tangan
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
+    .stApp a {
+        color: inherit !important;
+        text-decoration: none !important;
+        pointer-events: none !important;
+        cursor: default !important;
+    }
+    .email-style {
+        color: white !important;
+        pointer-events: none !important;
+        cursor: default !important;
+        user-select: none;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. LOGIN SYSTEM
+# 3. LOGIN SYSTEM
 ALLOWED_EMAILS = ["imanmuhamad9@gmail.com", "admin@perusahaan.com"]
 
 if "auth" not in st.session_state:
@@ -37,29 +50,26 @@ if not st.session_state.auth:
             st.error("Email tidak terdaftar!")
     st.stop()
 
-# 3. SIDEBAR (LOGOUT DI BAWAH BANGET & EMAIL TULISAN BIASA)
+# 4. SIDEBAR (LOGOUT DI DASAR BANGET)
 with st.sidebar:
     st.write("👤 **User Login:**")
-    # Pakai markdown biasa supaya tidak bisa diklik dan tetep 1 baris
-    st.markdown(f"<span style='font-size:14px;'>{st.session_state.email_user}</span>", unsafe_allow_html=True)
+    # Pakai div class email-style agar CSS di atas bekerja (Anti-Biru & Anti-Klik)
+    st.markdown(f'<div class="email-style">{st.session_state.email_user}</div>', unsafe_allow_html=True)
     
     st.divider()
     
     st.write("🎯 **Akurasi Nama (%)**")
     threshold = st.slider("Akurasi", 50, 100, 85, label_visibility="collapsed")
-    st.caption("Atur sensitivitas pencarian.")
-
-    # Trik "Space Filler" supaya logout turun ke bawah banget
-    # Kita buat kontainer kosong yang besar
-    for _ in range(20):
-        st.write("") 
+    
+    # Trik CSS Spacer: Gunakan kontainer fleksibel untuk dorong logout ke bawah
+    st.markdown('<div style="height: 60vh;"></div>', unsafe_allow_html=True)
     
     st.divider()
     if st.button("🚪 Keluar / Logout", use_container_width=True):
         st.session_state.auth = False
         st.rerun()
 
-# 4. APLIKASI UTAMA
+# 5. APLIKASI UTAMA
 st.title("🔍 Screening APU, PPT, dan PPPSPM")
 
 @st.cache_data
