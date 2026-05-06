@@ -5,7 +5,7 @@ import os
 import io
 import time
 import uuid
-import hashlib # Tambahan untuk enkripsi password
+import hashlib
 from datetime import datetime, timedelta
 
 # 1. KONFIGURASI HALAMAN
@@ -19,7 +19,7 @@ LINK_SHEETS = {
     "SIPENDAR": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTwj6BDBGvo9yWRYMkPGNxPi9KtLrbU8qT8zA5VdiogRlp1JoxBDADyh3xF2gWROuPS0pBujoYiKUn-/pub?gid=288835560&single=true&output=csv"
 }
 
-# 3. CSS CUSTOM & ANTI-SUGGEST
+# 3. CSS CUSTOM
 st.markdown("""
     <style>
     header[data-testid="stHeader"] { visibility: hidden; height: 0%; }
@@ -30,7 +30,6 @@ st.markdown("""
         text-align: center; display: flex; align-items: center; justify-content: center;
         height: 100%; letter-spacing: 1px;
     }
-    .block-container { padding-top: 1rem; }
     .search-container {
         background-color: #f0f2f6; padding: 15px; border-radius: 10px;
         border-left: 5px solid #0068c9; margin-top: 20px;
@@ -40,23 +39,12 @@ st.markdown("""
         border: 1px solid #e6e9ef; text-align: center;
     }
     </style>
-    <script>
-        const patchInputs = () => {
-            const inputs = window.parent.document.getElementsByTagName('input');
-            for (let i = 0; i < inputs.length; i++) {
-                inputs[i].setAttribute('autocomplete', 'new-password');
-                inputs[i].setAttribute('spellcheck', 'false');
-            }
-        };
-        setInterval(patchInputs, 500);
-    </script>
     """, unsafe_allow_html=True)
 
-# 4. FUNGSI LOGGING & ENKRIPSI
+# 4. FUNGSI LOGGING & SECURITY
 def log_activity(email, action):
     log_file = "log_aktivitas.csv"
-    jam_wib = datetime.now() + timedelta(hours=7)
-    now = jam_wib.strftime("%Y-%m-%d %H:%M:%S")
+    now = (datetime.now() + timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S")
     new_data = pd.DataFrame([[now, email, action]], columns=["Waktu", "User", "Aktivitas"])
     try:
         if not os.path.isfile(log_file): new_data.to_csv(log_file, index=False)
@@ -66,179 +54,170 @@ def log_activity(email, action):
 def hash_pass(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
-# 5. INITIAL SESSION STATE
-if "auth" not in st.session_state: st.session_state.auth = False
-if "form_key" not in st.session_state: st.session_state.form_key = str(uuid.uuid4())
-
-# 6. LOGIKA TIMEOUT (5 MENIT)
-TIMEOUT_LIMIT = 5 * 60 
-if st.session_state.auth:
-    if "last_activity" in st.session_state:
-        elapsed = time.time() - st.session_state.last_activity
-        if elapsed > TIMEOUT_LIMIT:
-            log_activity(st.session_state.email_user, "Auto-Logout (Timeout)")
-            st.session_state.auth = False
-            st.rerun()
-    st.session_state.last_activity = time.time()
-
-# 7. LOGIN SYSTEM DENGAN PASSWORD RAHASIA
-ALLOWED_EMAILS = ["imanmuhamad9@gmail.com", "x@gmail.com", "xx@gmail.com"]
 USER_DB_FILE = "users_db.csv"
+ALLOWED_EMAILS = ["imanmuhamad9@gmail.com", "x@gmail.com", "xx@gmail.com"]
 
 def load_user_db():
     if os.path.exists(USER_DB_FILE):
         return pd.read_csv(USER_DB_FILE)
     return pd.DataFrame(columns=["Email", "PasswordHash"])
 
+# 5. SESSION STATE & TIMEOUT
+if "auth" not in st.session_state: st.session_state.auth = False
+if "form_key" not in st.session_state: st.session_state.form_key = str(uuid.uuid4())
+
+if st.session_state.auth:
+    if "last_activity" in st.session_state:
+        if (time.time() - st.session_state.last_activity) > (5 * 60):
+            st.session_state.auth = False
+            st.rerun()
+    st.session_state.last_activity = time.time()
+
+# 6. LOGIN SYSTEM
 if not st.session_state.auth:
     st.title("🔐 Login Screening System")
     df_users = load_user_db()
-    
-    u_email = st.text_input("Email:", key=f"mail_{st.session_state.form_key}").lower().strip()
+    u_email = st.text_input("Email:", key=f"m_{st.session_state.form_key}").lower().strip()
     
     if u_email:
         if u_email not in ALLOWED_EMAILS:
-            st.error("Email tidak diizinkan oleh Admin!")
+            st.error("Email tidak diizinkan!")
         else:
             user_row = df_users[df_users['Email'] == u_email]
-            
             if user_row.empty:
-                st.info(f"Halo {u_email}, silakan buat password untuk pendaftaran pertama.")
-                new_p = st.text_input("Buat Password:", type="password", key="new_p")
-                conf_p = st.text_input("Konfirmasi Password:", type="password", key="conf_p")
+                st.info(f"Halo {u_email}, Anda belum memiliki password. Silakan buat baru.")
+                p1 = st.text_input("Buat Password:", type="password", key="p1")
+                p2 = st.text_input("Konfirmasi Password:", type="password", key="p2")
                 if st.button("Daftarkan Password", use_container_width=True):
-                    if new_p == conf_p and len(new_p) >= 4:
-                        hashed = hash_pass(new_p)
-                        new_user = pd.DataFrame([[u_email, hashed]], columns=["Email", "PasswordHash"])
-                        pd.concat([df_users, new_user]).to_csv(USER_DB_FILE, index=False)
-                        st.success("Berhasil! Silakan login ulang.")
+                    if p1 == p2 and len(p1) >= 4:
+                        new_u = pd.DataFrame([[u_email, hash_pass(p1)]], columns=["Email", "PasswordHash"])
+                        pd.concat([df_users, new_u]).to_csv(USER_DB_FILE, index=False)
+                        st.success("Berhasil! Silakan masukkan email kembali.")
                         time.sleep(2)
                         st.rerun()
-                    else: st.error("Password tidak cocok atau terlalu pendek!")
+                    else: st.error("Password tidak cocok/pendek!")
             else:
-                u_pass = st.text_input("Password:", type="password", key=f"pass_{st.session_state.form_key}")
+                u_pass = st.text_input("Password:", type="password", key=f"p_{st.session_state.form_key}")
                 if st.button("Masuk", use_container_width=True):
                     if hash_pass(u_pass) == user_row.iloc[0]['PasswordHash']:
-                        st.session_state.auth = True
-                        st.session_state.email_user = u_email
+                        st.session_state.auth, st.session_state.email_user = True, u_email
                         st.session_state.last_activity = time.time()
                         log_activity(u_email, "Login Success")
                         st.rerun()
-                    else:
-                        log_activity(u_email, "Login Failed (Wrong Password)")
-                        st.error("Password Salah!")
+                    else: st.error("Password Salah!")
     st.stop()
 
+# --- SETELAH LOGIN ---
 is_super_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
 
-# 8. HEADER
-col_u, col_b = st.columns([1, 3])
-with col_u:
-    st.markdown(f'<p class="user-info">👤 {st.session_state.email_user}</p>', unsafe_allow_html=True)
-    if st.button("🚪 Logout"):
-        log_activity(st.session_state.email_user, "Logout")
-        st.session_state.auth = False
-        st.rerun()
-with col_b:
-    st.markdown('<div class="header-banner-clean">🔍 SCREENING DATA APU, PPT, DAN PPPSPM</div>', unsafe_allow_html=True)
+# 7. SIDEBAR (GANTI PASSWORD & LOGOUT)
+with st.sidebar:
+    st.title("⚙️ Setelan Akun")
+    st.write(f"User: **{st.session_state.email_user}**")
+    with st.expander("🔑 Ganti Password"):
+        old_p = st.text_input("Password Lama", type="password")
+        new_p = st.text_input("Password Baru", type="password")
+        if st.button("Simpan Password Baru"):
+            df_u = load_user_db()
+            idx = df_u[df_u['Email'] == st.session_state.email_user].index
+            if hash_pass(old_p) == df_u.loc[idx[0], 'PasswordHash'] and len(new_p) >= 4:
+                df_u.loc[idx[0], 'PasswordHash'] = hash_pass(new_p)
+                df_u.to_csv(USER_DB_FILE, index=False)
+                st.success("Berhasil!")
+                time.sleep(1); st.rerun()
+            else: st.error("Gagal!")
+    if st.button("🚪 Logout", use_container_width=True):
+        st.session_state.auth = False; st.rerun()
+
+# 8. HEADER & DATA
+st.markdown('<div class="header-banner-clean">🔍 SCREENING DATA APU, PPT, DAN PPPSPM</div>', unsafe_allow_html=True)
 st.divider()
 
-# 9. LOAD DATA
 @st.cache_data(ttl=300)
 def load_db():
-    all_data, stats, total = {}, {}, 0
+    all_d, stats, total = {}, {}, 0
     for name, url in LINK_SHEETS.items():
         try:
-            df = pd.read_csv(url)
-            all_data[name], stats[name], total = df, len(df), total + len(df)
+            df = pd.read_csv(url); all_d[name], stats[name], total = df, len(df), total + len(df)
         except: continue
-    return all_data, stats, total
-
+    return all_d, stats, total
 db, db_stats, total_all = load_db()
 
-# 10. TABS
-tabs = st.tabs(["🔍 Screening Nasabah", "📜 Log Admin"]) if is_super_admin else st.tabs(["🔍 Screening Nasabah"])
+# 9. TABS
+if is_super_admin:
+    tabs = st.tabs(["🔍 Screening", "📊 Log Admin", "👥 User Management"])
+else:
+    tabs = st.tabs(["🔍 Screening"])
 
-# --- TAB SCREENING ---
+# --- TAB SCREENING (SAMA SEPERTI SEBELUMNYA) ---
 with tabs[0]:
     st.markdown('<div class="search-container">', unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 2, 2])
     with c1: metode = st.radio("Metode:", ["Nama", "NIK", "Paspor"], horizontal=True)
-    with c2: query = st.text_input("Cari Data:", placeholder=f"Masukkan {metode}...", key=f"q_{st.session_state.form_key}")
-    with c3: threshold = st.slider("🎯 Akurasi Pencarian (%)", 50, 100, 85)
+    with c2: query = st.text_input("Cari Data:", placeholder=f"Masukkan {metode}...", key="q_main")
+    with c3: threshold = st.slider("🎯 Akurasi (%)", 50, 100, 85)
     st.markdown('</div>', unsafe_allow_html=True)
 
     if query:
-        valid = True
-        if metode == "NIK" and len(query) != 16:
-            st.warning("⚠️ NIK harus 16 digit!")
-            valid = False
-        if valid:
-            search_id = f"search_{query}_{metode}"
-            if "last_log" not in st.session_state or st.session_state.last_log != search_id:
-                log_activity(st.session_state.email_user, f"Mencari {metode}: {query}")
-                st.session_state.last_log = search_id
+        log_activity(st.session_state.email_user, f"Screening {metode}: {query}")
+        q_clean = " ".join(query.split()).lower()
+        found, results_all = False, []
+        for sn, df_data in db.items():
+            def find_match(row):
+                max_s, m_info = 0, []
+                cols = df_data.columns if metode in ["NIK", "Paspor"] else [c for c in df_data.columns if 'nama' in c.lower()]
+                for c in cols:
+                    s = fuzz.token_sort_ratio(q_clean, str(row[c]).lower())
+                    if s >= threshold:
+                        m_info.append(f"{c} ({s}%)")
+                        if s > max_s: max_s = s
+                return pd.Series([max_s, "Match: " + ", ".join(m_info)]) if max_s > 0 else pd.Series([0, "-"])
+            
+            df_temp = df_data.copy()
+            df_temp[['_s', 'KET']] = df_temp.apply(find_match, axis=1)
+            match = df_temp[df_temp['_s'] > 0].copy()
+            if not match.empty:
+                found = True; res = match.sort_values('_s', ascending=False).drop(columns=['_s'])
+                results_all.append(res)
+                with st.expander(f"🚩 Database: {sn}", expanded=True):
+                    st.dataframe(res, hide_index=True, use_container_width=True)
+        if not found: st.error("Data tidak ditemukan.")
 
-            q_clean = " ".join(query.split()).lower()
-            found = False
-            results_all = []
-            for sn, df_data in db.items():
-                def find_match(row):
-                    m_info, max_s = [], 0
-                    cols = df_data.columns if metode in ["NIK", "Paspor"] else [c for c in df_data.columns if 'nama' in c.lower()]
-                    for c in cols:
-                        s = fuzz.token_sort_ratio(q_clean, str(row[c]).lower())
-                        if s >= threshold:
-                            m_info.append(f"{c} ({s}%)")
-                            if s > max_s: max_s = s
-                    return pd.Series([max_s, "Match: " + ", ".join(m_info)]) if max_s > 0 else pd.Series([0, "-"])
-
-                df_temp = df_data.copy()
-                df_temp[['_score', 'KET']] = df_temp.apply(find_match, axis=1)
-                match = df_temp[df_temp['_score'] > 0].copy()
-                if not match.empty:
-                    found = True
-                    res = match.sort_values('_score', ascending=False).drop(columns=['_score'])
-                    results_all.append(res)
-                    with st.expander(f"🚩 Database: {sn}", expanded=True):
-                        st.dataframe(res, hide_index=True, use_container_width=True)
-
-            if found and is_super_admin:
-                buf = io.BytesIO()
-                with pd.ExcelWriter(buf) as w: pd.concat(results_all).to_excel(w, index=False)
-                st.download_button("📥 Download Hasil (Excel)", buf.getvalue(), "Hasil_Screening.xlsx", use_container_width=True)
-            if not found: st.error("Data tidak ditemukan.")
-
-# --- TAB ADMIN ---
+# --- TAB LOG ADMIN ---
 if is_super_admin:
     with tabs[1]:
-        st.subheader("📊 Statistik & Manajemen Log")
-        if db_stats:
-            n_cols = len(db_stats) + 1
-            cols = st.columns(n_cols)
-            for i, (name, count) in enumerate(db_stats.items()):
-                cols[i].markdown(f'<div class="stat-card"><small>{name}</small><br><strong>{count:,}</strong></div>', unsafe_allow_html=True)
-            
-            with cols[-1]:
-                st.markdown(f'<div style="background-color: #0068c9; color: white; padding: 10px; border-radius: 8px; text-align: center;"><small>TOTAL DATA</small><br><strong style="font-size: 20px;">{total_all:,}</strong></div>', unsafe_allow_html=True)
-                st.write("") 
-                if os.path.exists("log_aktivitas.csv"):
-                    try:
-                        log_df_raw = pd.read_csv("log_aktivitas.csv")
-                        buf_log = io.BytesIO()
-                        with pd.ExcelWriter(buf_log) as w: log_df_raw.to_excel(w, index=False)
-                        st.download_button("📥 Download Log", buf_log.getvalue(), "Log_Aktivitas.xlsx", use_container_width=True)
-                    except: pass
-                    if st.button("🔥 Reset/Hapus Log", use_container_width=True):
-                        os.remove("log_aktivitas.csv")
-                        st.rerun()
-        
+        cols = st.columns(len(db_stats) + 1)
+        for i, (name, count) in enumerate(db_stats.items()):
+            cols[i].markdown(f'<div class="stat-card"><small>{name}</small><br><strong>{count:,}</strong></div>', unsafe_allow_html=True)
+        with cols[-1]:
+            st.markdown(f'<div style="background-color: #0068c9; color: white; padding: 10px; border-radius: 8px; text-align: center;"><small>TOTAL</small><br><strong>{total_all:,}</strong></div>', unsafe_allow_html=True)
+            if os.path.exists("log_aktivitas.csv"):
+                if st.button("🔥 Reset Log"): os.remove("log_aktivitas.csv"); st.rerun()
         st.divider()
         if os.path.exists("log_aktivitas.csv"):
-            try:
-                log_df = pd.read_csv("log_aktivitas.csv")
-                log_df = log_df.loc[:, ~log_df.columns.duplicated()]
-                st.write("📋 Riwayat Aktivitas:")
-                st.dataframe(log_df.iloc[::-1], use_container_width=True, hide_index=True)
-            except: st.error("Format log bermasalah. Klik Reset di kotak biru.")
-        else: st.info("Belum ada log aktivitas.")
+            st.dataframe(pd.read_csv("log_aktivitas.csv").iloc[::-1], use_container_width=True, hide_index=True)
+
+    # --- TAB USER MANAGEMENT (FITUR RESET PASSWORD) ---
+    with tabs[2]:
+        st.subheader("👥 Manajemen Reset Password Admin")
+        st.info("Klik 'Reset Password' pada user yang lupa password. User tersebut kemudian bisa membuat password baru saat login kembali.")
+        
+        df_u_current = load_user_db()
+        for email in ALLOWED_EMAILS:
+            c_mail, c_status, c_act = st.columns([2, 1, 1])
+            c_mail.write(f"**{email}**")
+            
+            is_registered = not df_u_current[df_u_current['Email'] == email].empty
+            c_status.write("✅ Sudah Ada Password" if is_registered else "⚠️ Belum Ada Password")
+            
+            if is_registered:
+                if c_act.button(f"Reset Password", key=f"reset_{email}"):
+                    # Hapus baris user tersebut dari database password
+                    df_u_updated = df_u_current[df_u_current['Email'] != email]
+                    df_u_updated.to_csv(USER_DB_FILE, index=False)
+                    log_activity(st.session_state.email_user, f"Reset password untuk: {email}")
+                    st.success(f"Password {email} berhasil di-reset!")
+                    time.sleep(1)
+                    st.rerun()
+            else:
+                c_act.write("-")
