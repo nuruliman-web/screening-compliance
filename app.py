@@ -5,6 +5,7 @@ import os
 import io
 import time
 import uuid
+import hashlib # Tambahan untuk enkripsi password
 from datetime import datetime, timedelta
 
 # 1. KONFIGURASI HALAMAN
@@ -51,7 +52,7 @@ st.markdown("""
     </script>
     """, unsafe_allow_html=True)
 
-# 4. FUNGSI LOGGING
+# 4. FUNGSI LOGGING & ENKRIPSI
 def log_activity(email, action):
     log_file = "log_aktivitas.csv"
     jam_wib = datetime.now() + timedelta(hours=7)
@@ -61,6 +62,9 @@ def log_activity(email, action):
         if not os.path.isfile(log_file): new_data.to_csv(log_file, index=False)
         else: new_data.to_csv(log_file, mode='a', header=False, index=False)
     except: pass
+
+def hash_pass(password):
+    return hashlib.sha256(str.encode(password)).hexdigest()
 
 # 5. INITIAL SESSION STATE
 if "auth" not in st.session_state: st.session_state.auth = False
@@ -77,18 +81,52 @@ if st.session_state.auth:
             st.rerun()
     st.session_state.last_activity = time.time()
 
-# 7. LOGIN SYSTEM
+# 7. LOGIN SYSTEM DENGAN PASSWORD RAHASIA
+ALLOWED_EMAILS = ["imanmuhamad9@gmail.com", "x@gmail.com", "xx@gmail.com"]
+USER_DB_FILE = "users_db.csv"
+
+def load_user_db():
+    if os.path.exists(USER_DB_FILE):
+        return pd.read_csv(USER_DB_FILE)
+    return pd.DataFrame(columns=["Email", "PasswordHash"])
+
 if not st.session_state.auth:
     st.title("🔐 Login Screening System")
-    u_email = st.text_input("Email:", key=f"login_{st.session_state.form_key}").lower().strip()
-    if st.button("Masuk"):
-        if u_email in ["imanmuhamad9@gmail.com", "admin@perusahaan.com", "xxx@gmail.com"]:
-            st.session_state.auth = True
-            st.session_state.email_user = u_email
-            st.session_state.last_activity = time.time()
-            log_activity(u_email, "Login")
-            st.rerun()
-        else: st.error("Email tidak terdaftar!")
+    df_users = load_user_db()
+    
+    u_email = st.text_input("Email:", key=f"mail_{st.session_state.form_key}").lower().strip()
+    
+    if u_email:
+        if u_email not in ALLOWED_EMAILS:
+            st.error("Email tidak diizinkan oleh Admin!")
+        else:
+            user_row = df_users[df_users['Email'] == u_email]
+            
+            if user_row.empty:
+                st.info(f"Halo {u_email}, silakan buat password untuk pendaftaran pertama.")
+                new_p = st.text_input("Buat Password:", type="password", key="new_p")
+                conf_p = st.text_input("Konfirmasi Password:", type="password", key="conf_p")
+                if st.button("Daftarkan Password", use_container_width=True):
+                    if new_p == conf_p and len(new_p) >= 4:
+                        hashed = hash_pass(new_p)
+                        new_user = pd.DataFrame([[u_email, hashed]], columns=["Email", "PasswordHash"])
+                        pd.concat([df_users, new_user]).to_csv(USER_DB_FILE, index=False)
+                        st.success("Berhasil! Silakan login ulang.")
+                        time.sleep(2)
+                        st.rerun()
+                    else: st.error("Password tidak cocok atau terlalu pendek!")
+            else:
+                u_pass = st.text_input("Password:", type="password", key=f"pass_{st.session_state.form_key}")
+                if st.button("Masuk", use_container_width=True):
+                    if hash_pass(u_pass) == user_row.iloc[0]['PasswordHash']:
+                        st.session_state.auth = True
+                        st.session_state.email_user = u_email
+                        st.session_state.last_activity = time.time()
+                        log_activity(u_email, "Login Success")
+                        st.rerun()
+                    else:
+                        log_activity(u_email, "Login Failed (Wrong Password)")
+                        st.error("Password Salah!")
     st.stop()
 
 is_super_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
@@ -171,7 +209,7 @@ with tabs[0]:
                 st.download_button("📥 Download Hasil (Excel)", buf.getvalue(), "Hasil_Screening.xlsx", use_container_width=True)
             if not found: st.error("Data tidak ditemukan.")
 
-# --- TAB ADMIN (REVISI TOMBOL DI KOTAK BIRU) ---
+# --- TAB ADMIN ---
 if is_super_admin:
     with tabs[1]:
         st.subheader("📊 Statistik & Manajemen Log")
@@ -181,22 +219,16 @@ if is_super_admin:
             for i, (name, count) in enumerate(db_stats.items()):
                 cols[i].markdown(f'<div class="stat-card"><small>{name}</small><br><strong>{count:,}</strong></div>', unsafe_allow_html=True)
             
-            # --- KOTAK BIRU (TOTAL & MANAJEMEN) ---
             with cols[-1]:
                 st.markdown(f'<div style="background-color: #0068c9; color: white; padding: 10px; border-radius: 8px; text-align: center;"><small>TOTAL DATA</small><br><strong style="font-size: 20px;">{total_all:,}</strong></div>', unsafe_allow_html=True)
-                st.write("") # Spasi
-                
-                # Cek jika file log ada untuk tombol Download & Reset
+                st.write("") 
                 if os.path.exists("log_aktivitas.csv"):
                     try:
                         log_df_raw = pd.read_csv("log_aktivitas.csv")
-                        # Tombol Download Log
                         buf_log = io.BytesIO()
                         with pd.ExcelWriter(buf_log) as w: log_df_raw.to_excel(w, index=False)
                         st.download_button("📥 Download Log", buf_log.getvalue(), "Log_Aktivitas.xlsx", use_container_width=True)
                     except: pass
-                    
-                    # Tombol Reset
                     if st.button("🔥 Reset/Hapus Log", use_container_width=True):
                         os.remove("log_aktivitas.csv")
                         st.rerun()
@@ -209,5 +241,4 @@ if is_super_admin:
                 st.write("📋 Riwayat Aktivitas:")
                 st.dataframe(log_df.iloc[::-1], use_container_width=True, hide_index=True)
             except: st.error("Format log bermasalah. Klik Reset di kotak biru.")
-        else:
-            st.info("Belum ada log aktivitas.")
+        else: st.info("Belum ada log aktivitas.")
