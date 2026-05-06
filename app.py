@@ -11,23 +11,23 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. CSS ANTI-BIRU & ANTI-KLIK
-# Kita paksa warna teks jadi putih/abu dan hilangkan pointer tangan
+# 2. CSS ANTI-BIRU, ANTI-KLIK & WARNA HITAM
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    .stApp a {
-        color: inherit !important;
+    /* Memaksa semua link/email di sidebar jadi hitam dan tidak bisa diklik */
+    .stSidebar a {
+        color: black !important;
         text-decoration: none !important;
         pointer-events: none !important;
         cursor: default !important;
     }
-    .email-style {
-        color: white !important;
+    .user-box {
+        color: black !important;
+        line-height: 1.2; /* Mengunci jarak antar baris supaya rapat */
         pointer-events: none !important;
         cursor: default !important;
-        user-select: none;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -50,19 +50,23 @@ if not st.session_state.auth:
             st.error("Email tidak terdaftar!")
     st.stop()
 
-# 4. SIDEBAR (LOGOUT DI DASAR BANGET)
+# 4. SIDEBAR (LOGOUT DI DASAR BANGET & EMAIL HITAM RAPAT)
 with st.sidebar:
-    st.write("👤 **User Login:**")
-    # Pakai div class email-style agar CSS di atas bekerja (Anti-Biru & Anti-Klik)
-    st.markdown(f'<div class="email-style">{st.session_state.email_user}</div>', unsafe_allow_html=True)
+    # Menggunakan satu blok HTML agar "User Login" dan "Email" rapat
+    st.markdown(f'''
+        <div class="user-box">
+            <b>User Login:</b><br>
+            {st.session_state.email_user}
+        </div>
+    ''', unsafe_allow_html=True)
     
     st.divider()
     
     st.write("🎯 **Akurasi Nama (%)**")
     threshold = st.slider("Akurasi", 50, 100, 85, label_visibility="collapsed")
     
-    # Trik CSS Spacer: Gunakan kontainer fleksibel untuk dorong logout ke bawah
-    st.markdown('<div style="height: 60vh;"></div>', unsafe_allow_html=True)
+    # Spacer dinamis untuk dorong logout ke dasar
+    st.markdown('<div style="height: 65vh;"></div>', unsafe_allow_html=True)
     
     st.divider()
     if st.button("🚪 Keluar / Logout", use_container_width=True):
