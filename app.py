@@ -8,23 +8,51 @@ import log_tab as admin_log
 import user_tab as admin_user
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN & SESSION INITIALIZATION
+# 1. KONFIGURASI HALAMAN & CSS SAKTI
 # ==========================================
 st.set_page_config(page_title="Screening System", layout="wide", initial_sidebar_state="collapsed")
 
-# --- WAJIB: Inisialisasi semua session state di paling atas ---
-if "auth" not in st.session_state:
-    st.session_state.auth = False
-if "last_activity" not in st.session_state:
-    st.session_state.last_activity = time.time()
-if "f_key" not in st.session_state:
-    st.session_state.f_key = str(uuid.uuid4()) # INI PENTING BIAR GAK ERROR
-if "show_pw_form" not in st.session_state:
-    st.session_state.show_pw_form = False
-if "login_attempts" not in st.session_state:
-    st.session_state.login_attempts = 0
-
-# ... (Logika Timeout & CSS tetap sama)
+# CSS untuk menyembunyikan elemen bawaan Streamlit & merapikan Header
+st.markdown("""
+    <style>
+    /* Sembunyikan Tombol Deploy & Menu Kanan Atas secara total */
+    .stAppDeployButton {display:none !important;}
+    #MainMenu {visibility: hidden !important;}
+    header {visibility: hidden !important;}
+    footer {visibility: hidden !important;}
+    [data-testid="stHeader"] {display: none !important;}
+    
+    /* Naikin konten ke atas biar gak ada gap putih lebar */
+    .block-container {padding-top: 1rem !important; padding-bottom: 0rem !important;}
+    
+    /* Styling Kotak User & Judul */
+    .user-box { 
+        background-color: #f8f9fa; 
+        padding: 8px 15px; 
+        border-radius: 8px; 
+        border: 1px solid #e6e9ef;
+        font-size: 14px;
+        color: #31333F;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        margin-bottom: 5px;
+    }
+    .header-title { 
+        color: #1f1f1f; 
+        font-size: 24px; 
+        font-weight: 800; 
+        text-align: right; /* Buat judul di kanan biar seimbang */
+        line-height: 1.2;
+    }
+    /* Tombol Logout & Ubah PW lebih ramping */
+    div.stButton > button {
+        padding: 2px 10px !important;
+        height: auto !important;
+        min-height: 32px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 # ==========================================
 # 2. LOGIN SYSTEM
@@ -149,28 +177,33 @@ user_info = df_w[df_w['Email'] == st.session_state.user]
 user_role = user_info.iloc[0]['Role'] if not user_info.empty else "User"
 is_admin = (user_role == "Admin")
 # ==========================================
-# 3. HEADER (USER INFO & JUDUL)
+# 3. HEADER BARU (LEBIH RAPI)
 # ==========================================
-# Cek Role User dari Whitelist
-user_info = df_w[df_w['Email'] == st.session_state.user]
-user_role = user_info.iloc[0]['Role'] if not user_info.empty else "User"
-is_admin = (user_role == "Admin")
+if st.session_state.auth:
+    # Cari role user
+    user_info = df_w[df_w['Email'] == st.session_state.user]
+    user_role = user_info.iloc[0]['Role'] if not user_info.empty else "User"
+    is_admin = (user_role == "Admin")
 
-col_user, col_title = st.columns([2.5, 3.5])
+    # Layout Header: Kiri (User Info), Kanan (Judul)
+    col_user_area, col_title_area = st.columns([4, 6])
 
-with col_user:
-    # Baris 1: Nama & Logout
-    c_u1, c_u2 = st.columns([2, 1])
-    c_u1.markdown(f'<div class="user-box">👤 {st.session_state.user} ({user_role})</div>', unsafe_allow_html=True)
-    if c_u2.button("🚪 Logout", use_container_width=True):
-        st.session_state.auth = False; st.rerun()
-    
-    # Baris 2: Ubah Password
-    if st.button("🔑 Ubah Password", use_container_width=True):
-        st.session_state.show_pw_form = not st.session_state.show_pw_form
+    with col_user_area:
+        # Nama User
+        st.markdown(f'<div class="user-box">👤 {st.session_state.user} &nbsp; <span style="color:#0068c9;">[{user_role}]</span></div>', unsafe_allow_html=True)
+        
+        # Tombol-tombol di bawah nama
+        c_btn1, c_btn2, _ = st.columns([1.2, 1.5, 2])
+        if c_btn1.button("🚪 Logout", use_container_width=True):
+            st.session_state.auth = False
+            st.rerun()
+        if c_btn2.button("🔑 Ubah Password", use_container_width=True):
+            st.session_state.show_pw_form = not st.session_state.show_pw_form
 
-with col_title:
-    st.markdown('<div class="header-title">🔍 SCREENING DATABASE APU, PPT, DAN PPPSPM</div>', unsafe_allow_html=True)
+    with col_title_area:
+        st.markdown('<div class="header-title">🔍 SCREENING DATABASE<br><span style="font-size:16px; font-weight:400;">APU, PPT, DAN PPPSPM</span></div>', unsafe_allow_html=True)
+
+    st.divider()
 
 # ==========================================
 # 4. PW CHANGE FORM
