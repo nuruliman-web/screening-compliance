@@ -138,4 +138,50 @@ with tabs[0]:
         for sn, df_data in db.items():
             def find_match(row):
                 matches_info = []
-                max_score =
+                max_score = 0
+                check_cols = [c for c in df_data.columns if 'nama' in c.lower()] if metode == "Nama" else df_data.columns
+                for c in check_cols:
+                    val = " ".join(str(row[c]).split()).lower()
+                    if metode == "Nama":
+                        s = fuzz.token_sort_ratio(q_clean, val)
+                        if s >= threshold:
+                            matches_info.append(f"{c} ({s}%)")
+                            if s > max_score: max_score = s
+                    else:
+                        if q_clean == val:
+                            matches_info.append(f"{c} (Cocok)")
+                            max_score = 100
+                if max_score > 0:
+                    return pd.Series([max_score, "Match pada: " + ", ".join(matches_info)])
+                return pd.Series([0, "-"])
+
+            df_temp = df_data.copy()
+            df_temp[['_score', 'ALASAN MATCH']] = df_temp.apply(find_match, axis=1)
+            match = df_temp[df_temp['_score'] > 0].copy()
+            
+            if not match.empty:
+                found = True
+                match = match.sort_values('_score', ascending=False)
+                cols_only = [c for c in match.columns if c not in ['_score', 'ALASAN MATCH']]
+                display_df = match[['ALASAN MATCH'] + cols_only]
+                results_to_export.append(display_df)
+                with st.expander(f"🚩 Database: {sn}", expanded=True):
+                    st.dataframe(display_df, hide_index=True, use_container_width=True)
+
+        if query and not found:
+            st.warning("Data tidak ditemukan di semua database.")
+
+# --- TAB LOG & STATS ---
+if is_admin:
+    with tabs[1]:
+        st.subheader("📊 Statistik Database (4 Sheets)")
+        if db_stats:
+            cols = st.columns(len(db_stats) + 1)
+            for i, (name, count) in enumerate(db_stats.items()):
+                with cols[i]:
+                    st.markdown(f'<div class="stat-card"><small>{name}</small><br><strong>{count:,}</strong></div>', unsafe_allow_html=True)
+            with cols[-1]:
+                st.markdown(f'<div class="stat-card" style="background-color: #0068c9; color: white;"><small>TOTAL DATA</small><br><strong>{total_all:,}</strong></div>', unsafe_allow_html=True)
+        st.divider()
+        if os.path.exists("log_aktivitas.csv"):
+            st.dataframe(pd.read_csv("log_aktivitas.csv").iloc[::-1], use_container_width=True, hide_index=True)
