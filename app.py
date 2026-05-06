@@ -8,10 +8,31 @@ import log_tab as admin_log
 import user_tab as admin_user
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN & CSS
+# 1. KONFIGURASI HALAMAN & TIMEOUT
 # ==========================================
 st.set_page_config(page_title="Screening System", layout="wide", initial_sidebar_state="collapsed")
 
+# KONFIGURASI WAKTU (3 MENIT = 180 DETIK)
+TIMEOUT_SECONDS = 180 
+
+# Logika Cek Timeout
+if "last_activity" not in st.session_state:
+    st.session_state.last_activity = time.time()
+
+if st.session_state.auth:
+    current_time = time.time()
+    elapsed_time = current_time - st.session_state.last_activity
+    
+    if elapsed_time > TIMEOUT_SECONDS:
+        st.session_state.auth = False
+        st.warning("Sesi Anda telah berakhir karena tidak ada aktivitas selama 3 menit.")
+        time.sleep(2)
+        st.rerun()
+    else:
+        # Update waktu aktivitas terakhir setiap ada interaksi
+        st.session_state.last_activity = current_time
+
+# --- CSS TETAP SAMA ---
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { display: none; }
@@ -42,22 +63,6 @@ st.markdown("""
         font-weight: 800; 
         text-align: center; 
         line-height: 1.2;
-    }
-
-    .pw-form { 
-        background-color: #ffffff; 
-        padding: 20px; 
-        border-radius: 10px; 
-        border: 1px solid #dee2e6; 
-        margin-top: 10px;
-    }
-
-    /* Tambahan sedikit agar Tab lebih rapi */
-    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
-    .stTabs [data-baseweb="tab"] { 
-        background-color: #f1f3f6; 
-        border-radius: 5px 5px 0 0; 
-        padding: 8px 16px;
     }
     </style>
     """, unsafe_allow_html=True)
