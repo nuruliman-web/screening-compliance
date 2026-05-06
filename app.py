@@ -26,7 +26,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. FUNGSI LOGGING
+# 3. FUNGSI LOGGING (AUTO REPAIR)
 def log_activity(email, action):
     log_file = "log_aktivitas.csv"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -71,10 +71,15 @@ def load_db(path):
 
 db = load_db("database.xlsx")
 
-# 7. TABS
+# 7. TABS (Logika Admin Iman)
 is_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
 can_download = st.session_state.email_user != "xxx@gmail.com"
-tab_screening, = st.tabs(["🔍 Screening Nasabah"]) if not is_admin else st.tabs(["🔍 Screening Nasabah", "📜 Log Admin"])
+
+if is_admin:
+    tab_screening, tab_log = st.tabs(["🔍 Screening Nasabah", "📜 Log Admin"])
+else:
+    tab_screening = st.tabs(["🔍 Screening Nasabah"])[0]
+    tab_log = None
 
 # --- TAB SCREENING ---
 with tab_screening:
@@ -89,7 +94,7 @@ with tab_screening:
         if query:
             q_clean = " ".join(query.split()).lower()
             found = False
-            results = []
+            all_match_results = []
             target_sheets = ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']
             log_activity(st.session_state.email_user, f"Cari {metode}")
 
@@ -97,61 +102,58 @@ with tab_screening:
                 if sn in db:
                     df = db[sn].copy()
                     
-                    def process_match(row):
+                    def check_row(row):
                         best_s = 0
-                        col_target = "-"
-                        cols = [c for c in df.columns if 'nama' in c.lower()] if metode == "Nama" else df.columns
+                        col_name = "-"
+                        # Tentukan kolom mana yang dicek
+                        cols_to_check = [c for c in df.columns if 'nama' in c.lower()] if metode == "Nama" else df.columns
                         
-                        for c in cols:
+                        for c in cols_to_check:
                             val = " ".join(str(row[c]).split()).lower()
                             if metode == "Nama":
                                 s = fuzz.token_sort_ratio(q_clean, val)
-                                if s > best_s: best_s, col_target = s, c
+                                if s > best_s: best_s, col_name = s, c
                             else:
-                                if q_clean == val: best_s, col_target = 100, c
+                                if q_clean == val: best_s, col_name = 100, c
                         
                         limit = threshold if metode == "Nama" else 100
                         if best_s >= limit:
-                            return pd.Series([best_s, f"Match {best_s}% pada kolom '{col_target}'", col_target])
-                        return pd.Series([0, "-", "-"])
+                            return pd.Series([best_s, f"Match {best_s}% pada '{col_name}'"])
+                        return pd.Series([0, "-"])
 
-                    df[['_s', 'ALASAN MATCH', '_c']] = df.apply(process_match, axis=1)
-                    match = df[df['_s'] > 0].copy()
+                    df[['_score', 'ALASAN MATCH']] = df.apply(check_row, axis=1)
+                    match_df = df[df['_score'] > 0].copy()
                     
-                    if not match.empty:
+                    if not match_df.empty:
                         found = True
-                        match = match.sort_values('_s', ascending=False)
+                        match_df = match_df.sort_values('_score', ascending=False)
                         
-                        # FUNGSI WARNA BARU (ANTI-ERROR)
-                        def apply_color(x):
-                            # x adalah seluruh dataframe hasil filter
-                            color_df = pd.DataFrame('', index=x.index, columns=x.columns)
-                            for idx, row in x.iterrows():
-                                col_nama_match = row['_c']
-                                if col_nama_match in x.columns:
-                                    color_df.loc[idx, col_nama_match] = 'color: red; font-weight: bold'
-                            return color_df
+                        # FUNGSI WARNA (VERSI PALING AMAN: APPLYMAP)
+                        def color_red(val):
+                            # Jika isi kotak mengandung kata yang dicari, kasih warna merah
+                            if str(val).lower() in q_clean or q_clean in str(val).lower():
+                                return 'color: red; font-weight: bold'
+                            return ''
 
-                        # Hapus kolom pembantu
-                        display_df = match.drop(columns=['_s', '_c'])
-                        results.append(display_df)
+                        # Tampilkan tabel
+                        display_df = match_df.drop(columns=['_score'])
+                        all_match_results.append(display_df)
                         
                         with st.expander(f"🚩 Database: {sn}", expanded=True):
-                            # Gunakan apply tanpa parameter axis untuk kestabilan
-                            st.dataframe(display_df.style.apply(apply_color, axis=None), hide_index=True, use_container_width=True)
+                            st.dataframe(display_df.style.applymap(color_red), hide_index=True, use_container_width=True)
 
             if found and can_download:
                 st.divider()
-                final_export = pd.concat(results)
+                final_df = pd.concat(all_match_results)
                 buf = io.BytesIO()
-                with pd.ExcelWriter(buf) as w: final_export.to_excel(w, index=False)
+                with pd.ExcelWriter(buf) as w: final_df.to_excel(w, index=False)
                 st.download_button("📥 Download Hasil", buf.getvalue(), "Hasil.xlsx", use_container_width=True)
             elif query and not found:
                 st.warning("Data tidak ditemukan.")
     else: st.error("Database tidak ditemukan.")
 
 # --- TAB LOG ---
-if is_admin:
-    with tab_screening.parent.tabs[1]:
+if is_admin and tab_log:
+    with tab_log:
         if os.path.exists("log_aktivitas.csv"):
             st.dataframe(pd.read_csv("log_aktivitas.csv").iloc[::-1], use_container_width=True, hide_index=True)
