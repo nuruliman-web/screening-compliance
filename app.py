@@ -124,27 +124,20 @@ with tabs[0]:
                 matches_info = []
                 max_score = 0
                 
-                # LOGIKA BARU: Jika Paspor, cari di SEMUA KOLOM tanpa kecuali
-                if metode == "Paspor":
+                # LOGIKA GLOBAL: NIK dan Paspor menyisir SEMUA KOLOM
+                if metode in ["NIK", "Paspor"]:
                     check_cols = df_data.columns
-                elif metode == "Nama":
+                else: # Metode Nama hanya cek kolom yang ada kata 'nama'
                     check_cols = [c for c in df_data.columns if 'nama' in c.lower()]
-                else: # NIK
-                    check_cols = [c for c in df_data.columns if any(x in c.lower() for x in ['nik', 'identitas', 'no'])]
 
                 for c in check_cols:
                     val = " ".join(str(row[c]).split()).lower()
                     
-                    # Sekarang Paspor juga pakai Fuzzy Logic agar lebih fleksibel
-                    if metode in ["Nama", "Paspor"]:
-                        s = fuzz.token_sort_ratio(q_clean, val)
-                        if s >= threshold:
-                            matches_info.append(f"{c} ({s}%)")
-                            if s > max_score: max_score = s
-                    else: # NIK tetep Exact Match agar akurat
-                        if q_clean == val:
-                            matches_info.append(f"{c} (Cocok)")
-                            max_score = 100
+                    # Fuzzy Logic untuk semua metode agar fleksibel
+                    s = fuzz.token_sort_ratio(q_clean, val)
+                    if s >= threshold:
+                        matches_info.append(f"{c} ({s}%)")
+                        if s > max_score: max_score = s
                 
                 if max_score > 0:
                     return pd.Series([max_score, "Match pada: " + ", ".join(matches_info)])
