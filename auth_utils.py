@@ -13,19 +13,26 @@ def load_user_db():
         return pd.read_csv(USER_DB_FILE)
     return pd.DataFrame(columns=["Email", "PasswordHash"])
 
-# --- FUNGSI WHITELIST OTOMATIS ---
+# --- FUNGSI WHITELIST (DIPERBAIKI) ---
 def load_whitelist():
+    # Jika file ada, kita cek isinya
     if os.path.exists(WHITELIST_FILE):
-        df = pd.read_csv(WHITELIST_FILE)
-        # Pastikan kolom Email dan Role ada
-        if "Email" not in df.columns:
-            df = pd.DataFrame(columns=["Email", "Role"])
-        return df
+        try:
+            df = pd.read_csv(WHITELIST_FILE)
+            # CEK: Apakah kolom 'Email' dan 'Role' ada?
+            if "Email" in df.columns and "Role" in df.columns:
+                return df
+            else:
+                # Kalau kolom salah, kita timpa dengan format bener
+                raise ValueError("Kolom tidak sesuai")
+        except:
+            # Jika file rusak/kosong/kolom salah, buat DataFrame baru
+            df = pd.DataFrame([{"Email": "imanmuhamad9@gmail.com", "Role": "Admin"}])
+            df.to_csv(WHITELIST_FILE, index=False)
+            return df
     else:
-        # Jika file TIDAK ADA, buat baru dengan kamu sebagai Admin
-        df = pd.DataFrame([
-            {"Email": "imanmuhamad9@gmail.com", "Role": "Admin"}
-        ])
+        # Jika file tidak ada, buat baru
+        df = pd.DataFrame([{"Email": "imanmuhamad9@gmail.com", "Role": "Admin"}])
         df.to_csv(WHITELIST_FILE, index=False)
         return df
 
@@ -38,7 +45,7 @@ def log_activity(user, activity):
     new_log = pd.DataFrame([[now, user, activity]], columns=["Waktu", "User", "Aktivitas"])
     if os.path.exists(log_file):
         df_log = pd.read_csv(log_file)
-        pd.concat([df_log, new_log]).to_csv(log_file, index=False)
+        pd.concat([df_log, new_log], ignore_index=True).to_csv(log_file, index=False)
     else:
         new_log.to_csv(log_file, index=False)
 
