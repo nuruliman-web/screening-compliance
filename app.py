@@ -6,7 +6,6 @@ import io
 import time
 import uuid
 import hashlib
-import re
 from datetime import datetime, timedelta
 
 # 1. KONFIGURASI HALAMAN
@@ -51,10 +50,23 @@ def hash_pass(password):
 USER_DB_FILE = "users_db.csv"
 WHITELIST_FILE = "whitelist.csv"
 
+# LOAD DATA SEKALI SAJA (PENTING BIAR NGGAK LAMA)
+@st.cache_data(ttl=600) # Simpan di memori selama 10 menit
+def load_db():
+    all_d, stats, total = {}, {}, 0
+    for name, url in LINK_SHEETS.items():
+        try:
+            df = pd.read_csv(url)
+            all_d[name] = df
+            stats[name] = len(df)
+            total += len(df)
+        except: continue
+    return all_d, stats, total
+
 def load_whitelist():
     if os.path.exists(WHITELIST_FILE):
         return pd.read_csv(WHITELIST_FILE)['Email'].tolist()
-    return ["imanmuhamad9@gmail.com"] # Default Admin Utama
+    return ["imanmuhamad9@gmail.com"]
 
 def save_whitelist(email_list):
     pd.DataFrame(email_list, columns=['Email']).to_csv(WHITELIST_FILE, index=False)
@@ -98,56 +110,28 @@ if not st.session_state.auth:
                     else: st.error("Password Salah!")
     st.stop()
 
-# --- SETELAH LOGIN ---
-is_super_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
-if (time.time() - st.session_state.last_activity) > (5 * 60):
+# --- CEK TIMEOUT ---
+if (time.time() - st.session_state.last_activity) > (10 * 60):
     st.session_state.auth = False; st.rerun()
 st.session_state.last_activity = time.time()
 
-# 7. HEADER
+# 7. HEADER & DATA LOADING
+db, db_stats, total_all = load_db()
+is_super_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
+
 h_col1, h_col2 = st.columns([2.2, 3.8])
 with h_col1:
     st.markdown(f'<div class="user-box">👤 <b>{st.session_state.email_user}</b></div>', unsafe_allow_html=True)
     b_col1, b_col2 = st.columns(2)
-    if b_col1.button("🔑 Ganti Password"):
-        st.session_state.show_pw_form = not st.session_state.show_pw_form
-    if b_col2.button("🚪 Logout"):
-        st.session_state.auth = False; st.rerun()
+    if b_col1.button("🔑 Password"): st.session_state.show_pw_form = not st.session_state.show_pw_form
+    if b_col2.button("🚪 Logout"): st.session_state.auth = False; st.rerun()
 with h_col2:
     st.markdown('<div class="header-title">SCREENING DATA APU, PPT, DAN PPPSPM</div>', unsafe_allow_html=True)
 
-if st.session_state.show_pw_form:
-    st.write("")
-    f_col1, f_col2, f_col3 = st.columns([2, 2, 1.5], vertical_alignment="bottom")
-    with f_col1: old_p = st.text_input("Password Lama", type="password", key="old_pwd_val")
-    with f_col2: new_p = st.text_input("Password Baru", type="password", key="new_pwd_val")
-    with f_col3: 
-        if st.button("💾 Simpan", key="save_btn_rata"):
-            df_u = load_user_db()
-            idx = df_u[df_u['Email'] == st.session_state.email_user].index
-            if hash_pass(old_p) == df_u.loc[idx[0], 'PasswordHash'] and len(new_p) >= 4:
-                df_u.loc[idx[0], 'PasswordHash'] = hash_pass(new_p)
-                df_u.to_csv(USER_DB_FILE, index=False)
-                st.success("Tersimpan!"); time.sleep(1); st.session_state.show_pw_form = False; st.rerun()
-            else: st.error("Gagal!")
 st.divider()
 
-# 8. LOAD DATA
-@st.cache_data(ttl=300)
-def load_db():
-    all_d, stats, total = {}, {}, 0
-    for name, url in LINK_SHEETS.items():
-        try:
-            df = pd.read_csv(url); all_d[name], stats[name], total = df, len(df), total + len(df)
-        except: continue
-    return all_d, stats, total
-db, db_stats, total_all = load_db()
-
 # 9. TABS
-if is_super_admin:
-    tabs = st.tabs(["🔍 Pencarian", "📊 Log Admin", "👥 Manajemen User"])
-else:
-    tabs = st.tabs(["🔍 Pencarian"])
+tabs = st.tabs(["🔍 Pencarian", "📊 Log Admin", "👥 Manajemen User"]) if is_super_admin else st.tabs(["🔍 Pencarian"])
 
 with tabs[0]:
     st.markdown('<div class="search-box">', unsafe_allow_html=True)
@@ -160,13 +144,10 @@ with tabs[0]:
     if query:
         q_strip = query.replace(" ", "").replace(".", "").replace("-", "")
         if metode == "Nama" and any(char.isdigit() for char in query):
-            st.error("❌ Pencarian Nama tidak boleh mengandung angka!")
+            st.error("❌ Nama tidak boleh mengandung angka!")
         elif metode == "NIK" and len(q_strip) < 16:
-            st.error(f"❌ NIK harus minimal 16 digit!")
-        elif metode == "Paspor" and len(q_strip) < 7:
-            st.error(f"❌ Nomor Paspor harus minimal 7 karakter!")
+            st.error(f"❌ NIK minimal 16 digit!")
         else:
-            log_activity(st.session_state.email_user, f"Cari {metode}: {query}")
             q_clean = " ".join(query.split()).lower()
             found, results_all = False, []
             for sn, df_data in db.items():
@@ -189,87 +170,42 @@ with tabs[0]:
                     results_all.append(res)
                     with st.expander(f"🚩 Database: {sn}", expanded=True): 
                         st.dataframe(res, hide_index=True, use_container_width=True)
-            if found and is_super_admin:
-                buf = io.BytesIO()
-                with pd.ExcelWriter(buf) as w: pd.concat(results_all).to_excel(w, index=False)
-                st.download_button("📥 Download Hasil Screening", buf.getvalue(), "Hasil.xlsx", use_container_width=True)
-            elif not found: st.warning("Data tidak ditemukan.")
+            if not found: st.warning("Data tidak ditemukan.")
 
 if is_super_admin:
     with tabs[1]:
-        cols_stat = st.columns(len(db_stats) + 1)
-        for i, (name, count) in enumerate(db_stats.items()):
-            cols_stat[i].markdown(f'<div class="stat-card"><small>{name}</small><br><b>{count:,}</b></div>', unsafe_allow_html=True)
-        with cols_stat[-1]:
-            st.markdown(f'<div style="background-color: #0068c9; color: white; padding: 15px; border-radius: 10px; text-align: center; height: 100px;"><small>TOTAL DATA</small><br><b>{total_all:,}</b></div>', unsafe_allow_html=True)
-        st.write("")
+        st.subheader("📊 Statistik & Log")
+        # Statistik Card
+        cols = st.columns(len(db_stats)+1)
+        for i, (k, v) in enumerate(db_stats.items()):
+            cols[i].markdown(f'<div class="stat-card"><small>{k}</small><br><b>{v:,}</b></div>', unsafe_allow_html=True)
+        cols[-1].markdown(f'<div class="stat-card" style="background:#0068c9;color:white;"><small>TOTAL</small><br><b>{total_all:,}</b></div>', unsafe_allow_html=True)
+        
         if os.path.exists("log_aktivitas.csv"):
-            log_df = pd.read_csv("log_aktivitas.csv")
-            l_col1, l_col2 = st.columns(2)
-            buf_log = io.BytesIO()
-            with pd.ExcelWriter(buf_log) as w: log_df.to_excel(w, index=False)
-            l_col1.download_button("📥 Download Log Aktivitas", buf_log.getvalue(), "Log.xlsx", use_container_width=True)
-            if l_col2.button("🔥 Reset / Hapus Semua Log", use_container_width=True):
-                os.remove("log_aktivitas.csv"); st.rerun()
-        st.divider()
-        if os.path.exists("log_aktivitas.csv"): st.dataframe(pd.read_csv("log_aktivitas.csv").iloc[::-1], use_container_width=True, hide_index=True)
+            st.dataframe(pd.read_csv("log_aktivitas.csv").iloc[::-1], use_container_width=True)
 
     with tabs[2]:
-        st.subheader("👥 Manajemen Akses & Verifikasi User")
+        st.subheader("👥 Manajemen User")
         df_u_current = load_user_db()
+        # Tambah User
+        c_n1, c_n2 = st.columns([3,1])
+        new_mail = c_n1.text_input("Tambah Email:")
+        if c_n2.button("➕ Tambah"):
+            if new_mail and "@" in new_mail:
+                ALLOWED_EMAILS.append(new_mail.lower().strip())
+                save_whitelist(ALLOWED_EMAILS)
+                st.rerun()
         
-        # 1. TAMBAH USER
-        st.markdown('<div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px;">', unsafe_allow_html=True)
-        c_add1, c_add2 = st.columns([3, 1], vertical_alignment="bottom")
-        with c_add1: new_email = st.text_input("Tambah Email User Baru:", placeholder="contoh@gmail.com")
-        with c_add2:
-            if st.button("➕ Tambahkan User", use_container_width=True):
-                if new_email and "@" in new_email:
-                    low_mail = new_email.lower().strip()
-                    if low_mail not in ALLOWED_EMAILS:
-                        ALLOWED_EMAILS.append(low_mail)
-                        save_whitelist(ALLOWED_EMAILS)
-                        st.success(f"Berhasil!"); time.sleep(1); st.rerun()
-                    else: st.warning("Sudah terdaftar.")
-                else: st.error("Format salah!")
-        st.markdown('</div>', unsafe_allow_html=True)
-
         st.divider()
-
-        # 2. TABEL MONITORING (Font Hitam, Email Langsung, Tombol Delete)
-        h_c1, h_c2, h_c3, h_c4 = st.columns([2, 1, 1, 2])
-        h_c1.write("**Email User**")
-        h_c2.write("**Status Akun**")
-        h_c3.write("**Verifikasi**")
-        h_c4.write("**Aksi Manajemen**")
-        
+        # Daftar Tabel
         for email in ALLOWED_EMAILS:
-            user_registered = not df_u_current[df_u_current['Email'] == email].empty
-            c_mail, c_stat, c_ver, c_act = st.columns([2, 1, 1, 2])
-            
-            c_mail.write(email) # Nama email langsung
-            
-            if user_registered:
-                c_stat.write("Aktif")
-                c_ver.write("Verified")
-            else:
-                c_stat.write("Terdaftar")
-                c_ver.write("Belum Verifikasi")
-            
-            # AKSI
-            btn_col1, btn_col2 = c_act.columns(2)
-            if user_registered:
-                if btn_col1.button("🔄 Reset", key=f"rs_{email}", use_container_width=True):
-                    df_u_new = df_u_current[df_u_current['Email'] != email]
-                    df_u_new.to_csv(USER_DB_FILE, index=False)
-                    st.success("Reset!"); time.sleep(0.5); st.rerun()
-            else: btn_col1.write("")
-
-            if email != "imanmuhamad9@gmail.com": # Admin ga bisa hapus diri sendiri
-                if btn_col2.button("🗑️ Hapus", key=f"del_{email}", use_container_width=True):
+            user_reg = not df_u_current[df_u_current['Email'] == email].empty
+            c1, c2, c3, c4 = st.columns([2,1,1,1])
+            c1.write(email)
+            c2.write("Aktif" if user_reg else "Terdaftar")
+            c3.write("Verified" if user_reg else "Belum")
+            if email != "imanmuhamad9@gmail.com":
+                if c4.button("🗑️ Hapus", key=f"del_{email}"):
                     ALLOWED_EMAILS.remove(email)
                     save_whitelist(ALLOWED_EMAILS)
-                    df_u_new = df_u_current[df_u_current['Email'] != email]
-                    df_u_new.to_csv(USER_DB_FILE, index=False)
-                    st.error("Dihapus!"); time.sleep(0.5); st.rerun()
-            else: btn_col2.write("🛡️ Super")
+                    st.rerun()
