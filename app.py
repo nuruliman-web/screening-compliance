@@ -57,22 +57,45 @@ if not st.session_state.auth:
         else: st.error("Email tidak terdaftar!")
     st.stop()
 
-# 4. HEADER (TOMBOL & JUDUL BARU)
+# 4. HEADER (REVISI TATA LETAK TOMBOL)
 is_admin = st.session_state.user == "imanmuhamad9@gmail.com"
-col_user, col_title = st.columns([2.5, 3.5])
+col_user, col_title = st.columns([2.8, 3.2]) # Sedikit penyesuaian lebar kolom
 
 with col_user:
-    st.markdown(f'<div class="user-box">👤 <b>{st.session_state.user}</b></div>', unsafe_allow_html=True)
-    btn1, btn2 = st.columns(2)
-    if btn1.button("🔑 Ubah Password"):
-        st.session_state.show_pw_form = not st.session_state.show_pw_form
-    if btn2.button("🚪 Logout"):
+    # Baris 1: Nama User & Logout Sejajar
+    u_c1, u_c2 = st.columns([2.5, 1], vertical_alignment="center")
+    u_c1.markdown(f'<div class="user-box" style="margin-bottom:0px">👤 <b>{st.session_state.user}</b></div>', unsafe_allow_html=True)
+    if u_c2.button("🚪 Logout", key="logout_btn"):
         st.session_state.auth = False
         st.rerun()
+    
+    # Baris 2: Ubah Password di bawahnya
+    if st.button("🔑 Ubah Password", use_container_width=True, key="pw_btn"):
+        st.session_state.show_pw_form = not st.session_state.show_pw_form
 
 with col_title:
-    # Judul sesuai permintaan (Ikon Cari + Teks Baru)
+    # Judul sesuai permintaan
     st.markdown('<div class="header-title">🔍 SCREENING DATABASE APU, PPT, DAN PPPSPM</div>', unsafe_allow_html=True)
+
+# 5. FORM UBAH PASSWORD (TETAP SAMA)
+if st.session_state.show_pw_form:
+    st.markdown('<div class="pw-form">', unsafe_allow_html=True)
+    st.write("### Ganti Password")
+    cp_col1, cp_col2, cp_col3 = st.columns([2, 2, 1.2], vertical_alignment="bottom")
+    old_p = cp_col1.text_input("Password Lama", type="password")
+    new_p = cp_col2.text_input("Password Baru", type="password")
+    if cp_col3.button("💾 Simpan"):
+        db_u = load_user_db()
+        current_pass = db_u[db_u['Email'] == st.session_state.user].iloc[0]['PasswordHash']
+        if hash_pass(old_p) == current_pass:
+            if len(new_p) >= 4:
+                update_password(st.session_state.user, new_p)
+                st.success("Password diperbarui!"); time.sleep(1)
+                st.session_state.show_pw_form = False
+                st.rerun()
+            else: st.error("Minimal 4 karakter!")
+        else: st.error("Password lama salah!")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # 5. FORM UBAH PASSWORD (MUNCUL JIKA DIKLIK)
 if st.session_state.show_pw_form:
