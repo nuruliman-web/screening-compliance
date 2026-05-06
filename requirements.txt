@@ -3,5 +3,4 @@ pandas
 openpyxl
 thefuzz
 python-Levenshtein
-gspread
-oauth2client
+
