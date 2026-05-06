@@ -25,32 +25,63 @@ def run_pencarian(user_email, db, is_admin):
     st.markdown('<div class="search-box">', unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 2, 2])
     metode = c1.radio("Metode Pencarian:", ["Nama", "NIK", "Paspor"], horizontal=True)
-    query = c2.text_input("Input Data:", placeholder="Ketik nama/nomor...", key="q_in")
-    threshold = c3.slider("Akurasi (%)", 50, 100, 85)
+    query = c2.text_input("Input Data:", placeholder="Ketik nama atau nomor...", key="q_in")
+    threshold = c3.slider("Ambang Batas Akurasi (%)", 50, 100, 85)
     st.markdown('</div>', unsafe_allow_html=True)
 
     if query:
         q_strip = query.replace(" ", "").replace(".", "").replace("-", "")
+        
+        # Validasi Input
         if metode == "Nama" and any(char.isdigit() for char in query):
-            st.error("❌ Nama tidak boleh angka!")
+            st.error("❌ Pencarian Nama tidak boleh mengandung angka!")
         elif metode == "NIK" and len(q_strip) < 16:
-            st.error(f"❌ NIK minimal 16 digit!")
+            st.error(f"❌ NIK harus minimal 16 digit! (Input: {len(q_strip)})")
         else:
             log_activity(user_email, f"Cari {metode}: {query}")
             q_clean = " ".join(query.split()).lower()
             found, res_list = False, []
+
             for name, df in db.items():
-                def check(row):
-                    cols = df.columns if metode != "Nama" else [c for c in df.columns if 'nama' in c.lower()]
-                    s = max([fuzz.token_sort_ratio(q_clean, str(row[c]).lower()) for c in cols])
-                    return s if s >= threshold else 0
+                # Logic Identifikasi Kolom & Skor
+                def identify_match(row):
+                    best_score = 0
+                    matched_info = []
+                    # Tentukan kolom target
+                    target_cols = df.columns if metode != "Nama" else [c for c in df.columns if 'nama' in c.lower()]
+                    
+                    for col in target_cols:
+                        val = str(row[col]).lower()
+                        score = fuzz.token_sort_ratio(q_clean, val)
+                        if score >= threshold:
+                            matched_info.append(f"{col} ({score}%)")
+                            if score > best_score: best_score = score
+                    
+                    status = "MATCH: " + ", ".join(matched_info) if best_score > 0 else "-"
+                    return pd.Series([best_score, status])
+
                 df_c = df.copy()
-                df_c['_s'] = df_c.apply(check, axis=1)
-                matches = df_c[df_c['_s'] > 0].drop(columns=['_s'])
+                # Jalankan fungsi dan simpan ke kolom sementara
+                df_c[['_score', 'HASIL IDENTIFIKASI']] = df_c.apply(identify_match, axis=1)
+                
+                # Filter hanya yang match
+                matches = df_c[df_c['_score'] > 0].copy()
+                
                 if not matches.empty:
-                    found = True; res_list.append(matches)
-                    with st.expander(f"🚩 Database: {name}", expanded=True): st.dataframe(matches, hide_index=True)
+                    found = True
+                    # Hapus skor internal dan pindahkan HASIL IDENTIFIKASI ke paling kiri
+                    matches = matches.sort_values('_score', ascending=False).drop(columns=['_score'])
+                    cols = matches.columns.tolist()
+                    cols.insert(0, cols.pop(cols.index('HASIL IDENTIFIKASI')))
+                    matches = matches[cols]
+                    
+                    res_list.append(matches)
+                    with st.expander(f"🚩 Ditemukan di Database: {name}", expanded=True):
+                        st.dataframe(matches, hide_index=True, use_container_width=True)
+            
             if found and is_admin:
                 buf = io.BytesIO()
                 with pd.ExcelWriter(buf) as w: pd.concat(res_list).to_excel(w, index=False)
-                st.download_button("📥 Download Hasil", buf.getvalue(), "Hasil.xlsx")
+                st.download_button("📥 Download Semua Temuan (Excel)", buf.getvalue(), "Hasil_Screening.xlsx", use_container_width=True)
+            elif not found:
+                st.warning("Data tidak ditemukan di database manapun.")
