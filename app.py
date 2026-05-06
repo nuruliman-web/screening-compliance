@@ -13,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. CSS SAKTI: HILANGKAN HEADER & CUSTOM BUTTON
+# 2. CSS CUSTOM: HAPUS HEADER & UKURAN TOMBOL
 st.markdown("""
     <style>
     header[data-testid="stHeader"] {
@@ -24,16 +24,17 @@ st.markdown("""
     .user-info {
         color: black !important;
         font-weight: bold;
-        pointer-events: none;
+        margin-bottom: 0px;
     }
     .block-container {
         padding-top: 1rem;
     }
-    /* Kecilkan tombol logout */
-    div.stButton > button {
-        width: auto;
-        padding-left: 20px;
-        padding-right: 20px;
+    /* Style tombol logout agar kecil dan manis */
+    .stButton > button {
+        width: auto !important;
+        height: auto !important;
+        padding: 2px 15px !important;
+        font-size: 12px !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -83,11 +84,10 @@ if not st.session_state.auth:
 is_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
 can_download = st.session_state.email_user != "xxx@gmail.com"
 
-# 6. HEADER BAR (User Info & Logout Kecil)
-col_header_1, col_header_2 = st.columns([5, 1])
-with col_header_1:
+# 6. HEADER INFO (User & Logout di bawahnya)
+col_user_box, _ = st.columns([1, 4])
+with col_user_box:
     st.markdown(f'<p class="user-info">👤 User: {st.session_state.email_user}</p>', unsafe_allow_html=True)
-with col_header_2:
     if st.button("🚪 Logout"):
         log_activity(st.session_state.email_user, "Manual Logout")
         st.session_state.auth = False
@@ -119,15 +119,18 @@ with tab_screening:
 
     db = load_db("database.xlsx")
     if db:
-        # Input Pencarian
-        c1, c2 = st.columns([1, 3])
-        with c1:
+        # Layout Pencarian
+        c_pilih, c_cari = st.columns([1, 3])
+        with c_pilih:
             metode = st.radio("Metode:", ["Nama", "NIK / Paspor"], horizontal=True)
-        with c2:
-            query = st.text_input("Cari Data:", placeholder="Ketik Nama/NIK lalu tekan Enter...")
+        with c_cari:
+            query = st.text_input("Cari Data:", placeholder="Masukkan Nama atau NIK...")
 
-        # Slider Akurasi diletakkan di bawah Input (sesuai permintaan)
-        threshold = st.slider("🎯 Atur Ambang Kecocokan (%)", 50, 100, 85)
+        # Slider dibuat pendek (hanya selebar kolom cari data)
+        # Kita pakai kolom pembagi lagi supaya slidernya gak melar
+        _, c_slider, c_spacer = st.columns([1, 3, 2]) # Sejajarkan dengan c_cari
+        with c_slider:
+            threshold = st.slider("🎯 Akurasi Nama (%)", 50, 100, 85)
 
         if query:
             q_clean = " ".join(query.split()).lower()
@@ -159,7 +162,7 @@ with tab_screening:
                         found = True
                         match = match.sort_values('SKOR', ascending=False)
                         results.append(match)
-                        with st.expander(f"🚩 Hasil di Database: {sn}", expanded=True):
+                        with st.expander(f"🚩 Database: {sn}", expanded=True):
                             st.dataframe(match, hide_index=True, use_container_width=True)
 
             if found and can_download:
@@ -169,7 +172,7 @@ with tab_screening:
                 with pd.ExcelWriter(buf) as w: final_df.to_excel(w, index=False)
                 st.download_button("📥 Download Hasil (Excel)", buf.getvalue(), "Screening.xlsx", use_container_width=True)
             elif query and not found:
-                st.warning("Data tidak ditemukan dengan akurasi tersebut.")
+                st.warning("Data tidak ditemukan.")
     else:
         st.error("Database tidak ditemukan.")
 
