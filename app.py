@@ -71,18 +71,13 @@ def load_db(path):
 
 db = load_db("database.xlsx")
 
-# 7. TABS (Logika Admin Iman)
+# 7. TABS
 is_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
 can_download = st.session_state.email_user != "xxx@gmail.com"
-
-if is_admin:
-    tab_screening, tab_log = st.tabs(["🔍 Screening Nasabah", "📜 Log Admin"])
-else:
-    tab_screening = st.tabs(["🔍 Screening Nasabah"])[0]
-    tab_log = None
+tabs = st.tabs(["🔍 Screening Nasabah", "📜 Log Admin"]) if is_admin else st.tabs(["🔍 Screening Nasabah"])
 
 # --- TAB SCREENING ---
-with tab_screening:
+with tabs[0]:
     if db:
         st.markdown('<div class="search-container">', unsafe_allow_html=True)
         c1, c2, c3 = st.columns([1, 2, 2])
@@ -94,57 +89,58 @@ with tab_screening:
         if query:
             q_clean = " ".join(query.split()).lower()
             found = False
-            all_match_results = []
+            results_to_export = []
             target_sheets = ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']
-            log_activity(st.session_state.email_user, f"Cari {metode}")
+            log_activity(st.session_state.email_user, f"Cari {metode}: {query}")
 
             for sn in target_sheets:
                 if sn in db:
                     df = db[sn].copy()
                     
-                    def check_row(row):
+                    def find_match(row):
                         best_s = 0
-                        col_name = "-"
-                        # Tentukan kolom mana yang dicek
-                        cols_to_check = [c for c in df.columns if 'nama' in c.lower()] if metode == "Nama" else df.columns
+                        col_target = "-"
+                        # Fokus cari kolom yang ada kata 'nama'
+                        check_cols = [c for c in df.columns if 'nama' in c.lower()] if metode == "Nama" else df.columns
                         
-                        for c in cols_to_check:
+                        for c in check_cols:
                             val = " ".join(str(row[c]).split()).lower()
                             if metode == "Nama":
                                 s = fuzz.token_sort_ratio(q_clean, val)
-                                if s > best_s: best_s, col_name = s, c
+                                if s > best_s: best_s, col_target = s, c
                             else:
-                                if q_clean == val: best_s, col_name = 100, c
+                                if q_clean == val: best_s, col_target = 100, c
                         
                         limit = threshold if metode == "Nama" else 100
                         if best_s >= limit:
-                            return pd.Series([best_s, f"Match {best_s}% pada '{col_name}'"])
+                            return pd.Series([best_s, f"Match {best_s}% pada '{col_target}'"])
                         return pd.Series([0, "-"])
 
-                    df[['_score', 'ALASAN MATCH']] = df.apply(check_row, axis=1)
-                    match_df = df[df['_score'] > 0].copy()
+                    df[['_score', 'ALASAN MATCH']] = df.apply(find_match, axis=1)
+                    match = df[df['_score'] > 0].copy()
                     
-                    if not match_df.empty:
+                    if not match.empty:
                         found = True
-                        match_df = match_df.sort_values('_score', ascending=False)
+                        match = match.sort_values('_score', ascending=False)
                         
-                        # FUNGSI WARNA (VERSI PALING AMAN: APPLYMAP)
-                        def color_red(val):
-                            # Jika isi kotak mengandung kata yang dicari, kasih warna merah
-                            if str(val).lower() in q_clean or q_clean in str(val).lower():
-                                return 'color: red; font-weight: bold'
-                            return ''
-
-                        # Tampilkan tabel
-                        display_df = match_df.drop(columns=['_score'])
-                        all_match_results.append(display_df)
+                        # TENTUKAN TARGET KOLOM NAMA UNTUK DIWARNAI (STABIL)
+                        nama_cols = [c for c in match.columns if 'nama' in c.lower()]
+                        
+                        # Hapus skor internal agar tabel bersih
+                        display_df = match.drop(columns=['_score'])
+                        results_to_export.append(display_df)
                         
                         with st.expander(f"🚩 Database: {sn}", expanded=True):
-                            st.dataframe(display_df.style.applymap(color_red), hide_index=True, use_container_width=True)
+                            # STYLING: Hanya warnai kolom yang namanya mengandung 'NAMA'
+                            st.dataframe(
+                                display_df.style.applymap(lambda x: 'color: red; font-weight: bold', subset=nama_cols),
+                                hide_index=True, 
+                                use_container_width=True
+                            )
 
             if found and can_download:
                 st.divider()
-                final_df = pd.concat(all_match_results)
+                final_df = pd.concat(results_to_export)
                 buf = io.BytesIO()
                 with pd.ExcelWriter(buf) as w: final_df.to_excel(w, index=False)
                 st.download_button("📥 Download Hasil", buf.getvalue(), "Hasil.xlsx", use_container_width=True)
@@ -153,7 +149,7 @@ with tab_screening:
     else: st.error("Database tidak ditemukan.")
 
 # --- TAB LOG ---
-if is_admin and tab_log:
-    with tab_log:
+if is_admin:
+    with tabs[1]:
         if os.path.exists("log_aktivitas.csv"):
             st.dataframe(pd.read_csv("log_aktivitas.csv").iloc[::-1], use_container_width=True, hide_index=True)
