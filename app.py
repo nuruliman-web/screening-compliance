@@ -39,7 +39,6 @@ if st.session_state.get("auth"):
         st.session_state.auth = False
         st.rerun()
 
-# Update timer setiap interaksi
 st.session_state.last_activity = time.time()
 
 # 4. CSS CUSTOM (Warna Hitam, Jarak Rapat, Anti-Klik)
@@ -62,8 +61,9 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 5. LOGIN SYSTEM
-ALLOWED_EMAILS = ["imanmuhamad9@gmail.com", "admin@perusahaan.com"]
+# 5. LOGIN SYSTEM & PERMISSIONS
+# Tambahkan xxx@gmail.com ke daftar
+ALLOWED_EMAILS = ["imanmuhamad9@gmail.com", "admin@perusahaan.com", "xxx@gmail.com"]
 
 if "auth" not in st.session_state:
     st.session_state.auth = False
@@ -82,6 +82,10 @@ if not st.session_state.auth:
             st.error("Email tidak terdaftar!")
     st.stop()
 
+# Definisi Role
+is_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
+can_download = st.session_state.email_user != "xxx@gmail.com"
+
 # 6. SIDEBAR
 with st.sidebar:
     st.markdown(f'''
@@ -95,7 +99,6 @@ with st.sidebar:
     st.write("🎯 **Akurasi Nama (%)**")
     threshold = st.slider("Akurasi", 50, 100, 85, label_visibility="collapsed")
     
-    # Spacer untuk dorong logout ke bawah
     st.markdown('<div style="height: 60vh;"></div>', unsafe_allow_html=True)
     
     st.divider()
@@ -105,8 +108,7 @@ with st.sidebar:
         st.rerun()
 
 # 7. MENU UTAMA (TABS)
-# Jika user adalah Iman, tampilkan dua tab. Jika bukan, hanya satu tab.
-if st.session_state.email_user == "imanmuhamad9@gmail.com":
+if is_admin:
     tab_screening, tab_log = st.tabs(["🔍 Screening Nasabah", "📜 Log Aktivitas Admin"])
 else:
     tab_screening, = st.tabs(["🔍 Screening Nasabah"])
@@ -169,38 +171,37 @@ with tab_screening:
                             st.dataframe(match, hide_index=True, use_container_width=True)
 
             if found:
-                st.divider()
-                final_df = pd.concat(results)
-                buf = io.BytesIO()
-                with pd.ExcelWriter(buf) as w: final_df.to_excel(w, index=False)
-                st.download_button("📥 Download Hasil Screening (Excel)", buf.getvalue(), "Hasil.xlsx", use_container_width=True)
+                # CEK IZIN DOWNLOAD
+                if can_download:
+                    st.divider()
+                    final_df = pd.concat(results)
+                    buf = io.BytesIO()
+                    with pd.ExcelWriter(buf) as w: final_df.to_excel(w, index=False)
+                    st.download_button("📥 Download Hasil Screening (Excel)", buf.getvalue(), "Hasil.xlsx", use_container_width=True)
+                else:
+                    st.info("💡 Mode Testing: Anda hanya dapat mencari data, fitur download dinonaktifkan.")
             elif query:
                 st.warning("Data tidak ditemukan.")
     else:
         st.error("File 'database.xlsx' tidak ditemukan.")
 
-# --- TAB 2: LOG AKTIVITAS (Hanya untuk Admin) ---
-if tab_log:
+# --- TAB 2: LOG AKTIVITAS (Hanya untuk Admin Iman) ---
+if tab_log and is_admin:
     with tab_log:
         st.title("Audit Log Aktivitas")
-        st.write("Daftar riwayat login, logout, dan timeout user.")
-        
         if os.path.exists("log_aktivitas.csv"):
-            df_log = pd.read_csv("log_aktivitas.csv")
-            # Urutkan dari yang terbaru di atas
-            df_log = df_log.iloc[::-1]
+            df_log = pd.read_csv("log_aktivitas.csv").iloc[::-1]
             
-            # Tombol Download Log
+            # Tombol Download Log (Pasti bisa karena ini Tab khusus Admin)
             csv_buffer = io.StringIO()
             df_log.to_csv(csv_buffer, index=False)
             st.download_button(
                 label="📥 Download Seluruh Log Aktivitas (.csv)",
                 data=csv_buffer.getvalue(),
-                file_name=f"Log_Aktivitas_{datetime.now().strftime('%Y%m%d')}.csv",
+                file_name=f"Log_Aktivitas.csv",
                 mime="text/csv"
             )
-            
             st.divider()
             st.dataframe(df_log, use_container_width=True, hide_index=True)
         else:
-            st.info("Belum ada log aktivitas yang tercatat.")
+            st.info("Belum ada log aktivitas.")
