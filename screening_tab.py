@@ -3,7 +3,7 @@ import pandas as pd
 import io
 from auth_utils import log_activity
 
-# Konfigurasi Link Database
+# Konfigurasi Link Database (Tetap Sama)
 LINK_SHEETS = {
     "JUDOL": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTwj6BDBGvo9yWRYMkPGNxPi9KtLrbU8qT8zA5VdiogRlp1JoxBDADyh3xF2gWROuPS0pBujoYiKUn-/pub?gid=1397546375&single=true&output=csv",
     "DTTOT": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTwj6BDBGvo9yWRYMkPGNxPi9KtLrbU8qT8zA5VdiogRlp1JoxBDADyh3xF2gWROuPS0pBujoYiKUn-/pub?gid=1229360429&single=true&output=csv",
@@ -31,10 +31,10 @@ def run_pencarian(user_email, db, is_admin):
     if query:
         log_activity(user_email, f"Cari {metode}: {query}")
         found = False
-        res_dict = {} # Menggunakan dictionary untuk memisahkan per Database (Sheet)
+        res_dict = {} # Dictionary untuk menampung hasil per sheet
 
         for name, df in db.items():
-            # Fungsi cek data (pencarian teks sederhana)
+            # Logika pencarian standar (Tidak diubah)
             def check(row):
                 target_cols = df.columns if metode != "Nama" else [c for c in df.columns if 'nama' in c.lower()]
                 for c in target_cols:
@@ -53,16 +53,17 @@ def run_pencarian(user_email, db, is_admin):
                 cols.insert(0, cols.pop(cols.index('HASIL IDENTIFIKASI')))
                 matches = matches[cols]
                 
-                res_dict[name] = matches # Simpan hasil berdasarkan nama database-nya
+                # Simpan temuan ke dictionary untuk diproses saat download
+                res_dict[name] = matches
                 
                 with st.expander(f"🚩 Ditemukan di Database: {name}", expanded=True):
                     st.dataframe(matches, hide_index=True, use_container_width=True)
 
-        # FITUR DOWNLOAD MULTI-SHEET
+        # --- BAGIAN PERUBAHAN DOWNLOAD (MULTI-SHEET) ---
         if found and is_admin:
             st.divider()
             output = io.BytesIO()
-            # Gunakan ExcelWriter untuk membuat banyak sheet
+            # Logika baru: Simpan setiap database ke sheet-nya masing-masing
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 for sheet_name, data_frame in res_dict.items():
                     data_frame.to_excel(writer, index=False, sheet_name=sheet_name)
@@ -75,4 +76,4 @@ def run_pencarian(user_email, db, is_admin):
                 use_container_width=True
             )
         elif not found:
-            st.warning("Data tidak ditemukan di database manapun.")
+            st.warning("Data tidak ditemukan.")
