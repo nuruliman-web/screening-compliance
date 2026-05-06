@@ -18,12 +18,12 @@ def load_user_db():
     return pd.read_csv(USER_DB_FILE) if os.path.exists(USER_DB_FILE) else pd.DataFrame(columns=["Email", "PasswordHash"])
 
 def load_whitelist():
-    if os.path.exists(WHITELIST_FILE):
-        return pd.read_csv(WHITELIST_FILE)['Email'].tolist()
-    return ["imanmuhamad9@gmail.com"]
+    if os.path.exists("whitelist.csv"):
+        return pd.read_csv("whitelist.csv")
+    return pd.DataFrame(columns=["Email", "Role"])
 
-def save_whitelist(email_list):
-    pd.DataFrame(email_list, columns=['Email']).to_csv(WHITELIST_FILE, index=False)
+def save_whitelist(df):
+    df.to_csv("whitelist.csv", index=False)
 # ... (kode sebelumnya tetap sama)
 
 def update_password(email, new_password):
