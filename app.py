@@ -8,7 +8,7 @@ from datetime import datetime
 # 1. KONFIGURASI HALAMAN
 st.set_page_config(page_title="Screening System", layout="wide", initial_sidebar_state="collapsed")
 
-# 2. CSS CUSTOM (STYLING TEKS MERAH)
+# 2. CSS CUSTOM
 st.markdown("""
     <style>
     header[data-testid="stHeader"] { visibility: hidden; height: 0%; }
@@ -26,7 +26,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. FUNGSI LOGGING (SIMPEL)
+# 3. FUNGSI LOGGING
 def log_activity(email, action):
     log_file = "log_aktivitas.csv"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -41,12 +41,12 @@ def log_activity(email, action):
 if "auth" not in st.session_state: st.session_state.auth = False
 if not st.session_state.auth:
     st.title("🔐 Login Screening System")
-    user_email = st.text_input("Email:").lower().strip()
+    u_email = st.text_input("Email:").lower().strip()
     if st.button("Masuk"):
-        if user_email in ["imanmuhamad9@gmail.com", "admin@perusahaan.com", "xxx@gmail.com"]:
+        if u_email in ["imanmuhamad9@gmail.com", "admin@perusahaan.com", "xxx@gmail.com"]:
             st.session_state.auth = True
-            st.session_state.email_user = user_email
-            log_activity(user_email, "Login")
+            st.session_state.email_user = u_email
+            log_activity(u_email, "Login")
             st.rerun()
         else: st.error("Email tidak terdaftar!")
     st.stop()
@@ -65,9 +65,7 @@ st.divider()
 @st.cache_data(ttl=60)
 def load_db(path):
     if os.path.exists(path):
-        try:
-            data = pd.read_excel(path, sheet_name=None)
-            return data
+        try: return pd.read_excel(path, sheet_name=None)
         except: return None
     return None
 
@@ -76,7 +74,6 @@ db = load_db("database.xlsx")
 # 7. TABS
 is_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
 can_download = st.session_state.email_user != "xxx@gmail.com"
-
 tab_screening, = st.tabs(["🔍 Screening Nasabah"]) if not is_admin else st.tabs(["🔍 Screening Nasabah", "📜 Log Admin"])
 
 # --- TAB SCREENING ---
@@ -102,7 +99,6 @@ with tab_screening:
                     
                     def process_match(row):
                         best_s = 0
-                        reason = "-"
                         col_target = "-"
                         cols = [c for c in df.columns if 'nama' in c.lower()] if metode == "Nama" else df.columns
                         
@@ -110,40 +106,39 @@ with tab_screening:
                             val = " ".join(str(row[c]).split()).lower()
                             if metode == "Nama":
                                 s = fuzz.token_sort_ratio(q_clean, val)
-                                if s > best_s:
-                                    best_s, col_target = s, c
+                                if s > best_s: best_s, col_target = s, c
                             else:
-                                if q_clean == val:
-                                    best_s, col_target = 100, c
+                                if q_clean == val: best_s, col_target = 100, c
                         
-                        if best_s >= (threshold if metode == "Nama" else 100):
-                            reason = f"Match {best_s}% pada kolom '{col_target}'"
-                            return pd.Series([best_s, reason, col_target])
+                        limit = threshold if metode == "Nama" else 100
+                        if best_s >= limit:
+                            return pd.Series([best_s, f"Match {best_s}% pada kolom '{col_target}'", col_target])
                         return pd.Series([0, "-", "-"])
 
-                    df[['_score', 'ALASAN MATCH', '_col_match']] = df.apply(process_match, axis=1)
-                    match = df[df['_score'] > 0].copy()
+                    df[['_s', 'ALASAN MATCH', '_c']] = df.apply(process_match, axis=1)
+                    match = df[df['_s'] > 0].copy()
                     
                     if not match.empty:
                         found = True
-                        match = match.sort_values('_score', ascending=False)
+                        match = match.sort_values('_s', ascending=False)
                         
-                        # LOGIKA WARNA MERAH UNTUK NAMA YANG MATCH
-                        def style_results(row):
-                            styles = [''] * len(row)
-                            col_match = row['_col_match']
-                            # Cari index kolom yang match untuk dikasih warna merah
-                            if col_match in row.index:
-                                idx = row.index.get_loc(col_match)
-                                styles[idx] = 'color: red; font-weight: bold;'
-                            return styles
+                        # FUNGSI WARNA BARU (ANTI-ERROR)
+                        def apply_color(x):
+                            # x adalah seluruh dataframe hasil filter
+                            color_df = pd.DataFrame('', index=x.index, columns=x.columns)
+                            for idx, row in x.iterrows():
+                                col_nama_match = row['_c']
+                                if col_nama_match in x.columns:
+                                    color_df.loc[idx, col_nama_match] = 'color: red; font-weight: bold'
+                            return color_df
 
-                        # Hapus kolom pembantu sebelum ditampilkan
-                        display_df = match.drop(columns=['_score', '_col_match'])
+                        # Hapus kolom pembantu
+                        display_df = match.drop(columns=['_s', '_c'])
                         results.append(display_df)
                         
                         with st.expander(f"🚩 Database: {sn}", expanded=True):
-                            st.dataframe(display_df.style.apply(style_results, axis=1), hide_index=True, use_container_width=True)
+                            # Gunakan apply tanpa parameter axis untuk kestabilan
+                            st.dataframe(display_df.style.apply(apply_color, axis=None), hide_index=True, use_container_width=True)
 
             if found and can_download:
                 st.divider()
@@ -155,8 +150,8 @@ with tab_screening:
                 st.warning("Data tidak ditemukan.")
     else: st.error("Database tidak ditemukan.")
 
-# --- TAB LOG ADMIN ---
+# --- TAB LOG ---
 if is_admin:
-    with tab_screening.parent.tabs[1]: # Akses tab Log Admin
+    with tab_screening.parent.tabs[1]:
         if os.path.exists("log_aktivitas.csv"):
             st.dataframe(pd.read_csv("log_aktivitas.csv").iloc[::-1], use_container_width=True, hide_index=True)
