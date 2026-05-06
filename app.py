@@ -3,7 +3,7 @@ import pandas as pd
 from thefuzz import fuzz
 import os
 import io
-from datetime import datetime
+from datetime import datetime, timedelta # Tambahkan timedelta
 
 # 1. KONFIGURASI HALAMAN
 st.set_page_config(page_title="Screening System Multi-Database", layout="wide", initial_sidebar_state="collapsed")
@@ -39,13 +39,18 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. FUNGSI LOGGING
+# 4. FUNGSI LOGGING (UPDATE JAM WIB)
 def log_activity(email, action):
     log_file = "log_aktivitas.csv"
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # Jam sistem server + 7 Jam untuk menyesuaikan ke WIB (Laptop/Lokal)
+    jam_wib = datetime.now() + timedelta(hours=7)
+    now = jam_wib.strftime("%Y-%m-%d %H:%M:%S")
+    
     new_data = pd.DataFrame([[now, email, action]], columns=["Waktu", "User", "Aktivitas"])
-    if not os.path.isfile(log_file): new_data.to_csv(log_file, index=False)
-    else: new_data.to_csv(log_file, mode='a', header=False, index=False)
+    if not os.path.isfile(log_file): 
+        new_data.to_csv(log_file, index=False)
+    else: 
+        new_data.to_csv(log_file, mode='a', header=False, index=False)
 
 # 5. LOGIN SYSTEM
 if "auth" not in st.session_state: st.session_state.auth = False
@@ -123,17 +128,10 @@ with tabs[0]:
             def find_match(row):
                 matches_info = []
                 max_score = 0
-                
-                # LOGIKA GLOBAL: NIK dan Paspor menyisir SEMUA KOLOM
-                if metode in ["NIK", "Paspor"]:
-                    check_cols = df_data.columns
-                else: # Metode Nama hanya cek kolom yang ada kata 'nama'
-                    check_cols = [c for c in df_data.columns if 'nama' in c.lower()]
+                check_cols = df_data.columns if metode in ["NIK", "Paspor"] else [c for c in df_data.columns if 'nama' in c.lower()]
 
                 for c in check_cols:
                     val = " ".join(str(row[c]).split()).lower()
-                    
-                    # Fuzzy Logic untuk semua metode agar fleksibel
                     s = fuzz.token_sort_ratio(q_clean, val)
                     if s >= threshold:
                         matches_info.append(f"{c} ({s}%)")
@@ -162,8 +160,10 @@ with tabs[0]:
             buf = io.BytesIO()
             with pd.ExcelWriter(buf) as w: final_df.to_excel(w, index=False)
             st.download_button("📥 Download Hasil Screening (Excel)", buf.getvalue(), "Hasil_Pencarian.xlsx", use_container_width=True)
+            # Log aktifitas pencarian
+            log_activity(st.session_state.email_user, f"Screening {metode}: {query}")
         
-        if not found:
+        if query and not found:
             st.error(f"Data {metode} tidak ditemukan di seluruh database.")
 
 # --- TAB LOG ---
