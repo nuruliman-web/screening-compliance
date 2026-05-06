@@ -63,23 +63,24 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. LOGIN SYSTEM
+# 2. LOGIN SYSTEM (VERSI FIX ROLE)
 # ==========================================
 if "auth" not in st.session_state: st.session_state.auth = False
 if "f_key" not in st.session_state: st.session_state.f_key = str(uuid.uuid4())
 if "show_pw_form" not in st.session_state: st.session_state.show_pw_form = False
 
-# Load Whitelist (Sekarang dalam bentuk DataFrame)
+# Ambil data whitelist sebagai DataFrame
 df_w = load_whitelist()
 
 if not st.session_state.auth:
     st.title("🔐 Login Screening System")
     email_in = st.text_input("Email:", key=f"e_{st.session_state.f_key}").lower().strip()
     
-    # Cek apakah email ada di kolom 'Email' pada DataFrame whitelist
+    # PERBAIKAN DI SINI: Cek email di dalam kolom DataFrame
     if email_in in df_w['Email'].values:
         db_u = load_user_db()
         user_row = db_u[db_u['Email'] == email_in]
+        
         if user_row.empty:
             p1 = st.text_input("Buat Password Baru:", type="password")
             if st.button("Daftar"):
@@ -90,12 +91,28 @@ if not st.session_state.auth:
             pwd = st.text_input("Password:", type="password", key=f"p_{st.session_state.f_key}")
             if st.button("Masuk"):
                 if hash_pass(pwd) == user_row.iloc[0]['PasswordHash']:
-                    st.session_state.auth, st.session_state.user = True, email_in; log_activity(email_in, "Login"); st.rerun()
-                else: st.error("Salah!")
+                    # Berhasil Login
+                    st.session_state.auth = True
+                    st.session_state.user = email_in
+                    log_activity(email_in, "Login")
+                    st.rerun()
+                else: 
+                    st.error("Password Salah!")
     elif email_in != "":
-        st.error("Email tidak terdaftar dalam whitelist.")
+        st.error("Email Anda tidak terdaftar di Whitelist. Hubungi Admin.")
     st.stop()
 
+# ==========================================
+# 3. IDENTIFIKASI ROLE (UNTUK MENU)
+# ==========================================
+# Cari role user yang sedang login dari dataframe whitelist
+current_user_data = df_w[df_w['Email'] == st.session_state.user]
+if not current_user_data.empty:
+    user_role = current_user_data.iloc[0]['Role']
+else:
+    user_role = "User" # Default jika tidak ditemukan
+
+is_admin = (user_role == "Admin")
 # ==========================================
 # 3. HEADER (USER INFO & JUDUL)
 # ==========================================
