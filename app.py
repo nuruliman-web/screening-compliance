@@ -19,61 +19,18 @@ LINK_SHEETS = {
     "SIPENDAR": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTwj6BDBGvo9yWRYMkPGNxPi9KtLrbU8qT8zA5VdiogRlp1JoxBDADyh3xF2gWROuPS0pBujoYiKUn-/pub?gid=288835560&single=true&output=csv"
 }
 
-# 3. CSS CUSTOM UNTUK PRESISI TOTAL
+# 3. CSS CUSTOM (DESAIN TETAP OKE)
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { display: none; }
     header[data-testid="stHeader"] { visibility: hidden; height: 0%; }
     footer { visibility: hidden; }
-    
-    /* Box User */
-    .user-box { 
-        background-color: #f8f9fa; 
-        padding: 10px 15px; 
-        border-radius: 8px; 
-        border: 1px solid #e6e9ef; 
-        margin-bottom: 10px;
-    }
-    
-    /* Judul Tengah */
-    .header-title { 
-        color: #1f1f1f; 
-        font-size: 24px; 
-        font-weight: 800; 
-        text-align: center;
-        padding: 10px;
-        line-height: 1.2;
-    }
-
-    /* Paksa Tinggi Button Sama Semua */
-    div.stButton > button {
-        width: 100% !important;
-        height: 45px !important;
-        border-radius: 8px !important;
-        margin-top: 0px !important;
-    }
-
-    /* Input Password agar Sejajar Vertikal */
-    div[data-baseweb="input"] {
-        height: 45px !important;
-    }
-    
-    .search-box { 
-        background-color: #f0f2f6; 
-        padding: 20px; 
-        border-radius: 12px; 
-        border-left: 6px solid #0068c9; 
-        margin-bottom: 20px; 
-    }
-    
-    .stat-card { 
-        padding: 15px; 
-        border-radius: 10px; 
-        background-color: #ffffff; 
-        border: 1px solid #e6e9ef; 
-        text-align: center;
-        height: 100px;
-    }
+    .user-box { background-color: #f8f9fa; padding: 10px 15px; border-radius: 8px; border: 1px solid #e6e9ef; margin-bottom: 10px; }
+    .header-title { color: #1f1f1f; font-size: 24px; font-weight: 800; text-align: center; padding: 10px; line-height: 1.2; }
+    div.stButton > button { width: 100% !important; height: 45px !important; border-radius: 8px !important; }
+    div[data-baseweb="input"] { height: 45px !important; }
+    .search-box { background-color: #f0f2f6; padding: 20px; border-radius: 12px; border-left: 6px solid #0068c9; margin-bottom: 20px; }
+    .stat-card { padding: 15px; border-radius: 10px; background-color: #ffffff; border: 1px solid #e6e9ef; text-align: center; height: 100px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -137,25 +94,20 @@ if (time.time() - st.session_state.last_activity) > (5 * 60):
     st.session_state.auth = False; st.rerun()
 st.session_state.last_activity = time.time()
 
-# 7. HEADER (DESAIN BARU SUPAYA RATA)
+# 7. HEADER
 h_col1, h_col2 = st.columns([2.2, 3.8])
-
 with h_col1:
     st.markdown(f'<div class="user-box">👤 <b>{st.session_state.email_user}</b></div>', unsafe_allow_html=True)
-    # Gunakan kolom seimbang supaya button Logout dan Ganti PW tidak jomplang
     b_col1, b_col2 = st.columns(2)
     if b_col1.button("🔑 Ganti Password"):
         st.session_state.show_pw_form = not st.session_state.show_pw_form
     if b_col2.button("🚪 Logout"):
         st.session_state.auth = False; st.rerun()
-
 with h_col2:
     st.markdown('<div class="header-title">SCREENING DATA APU, PPT, DAN PPPSPM</div>', unsafe_allow_html=True)
 
-# FORM PW (SEJAJAR TOTAL)
 if st.session_state.show_pw_form:
     st.write("")
-    # Pakai vertical_alignment="bottom" supaya button simpan rata dengan kotak input
     f_col1, f_col2, f_col3 = st.columns([2, 2, 1.5], vertical_alignment="bottom")
     with f_col1: old_p = st.text_input("Password Lama", type="password", key="old_pwd_val")
     with f_col2: new_p = st.text_input("Password Baru", type="password", key="new_pwd_val")
@@ -200,22 +152,33 @@ with tabs[0]:
         q_clean = " ".join(query.split()).lower()
         found, results_all = False, []
         for sn, df_data in db.items():
+            # --- LOGIKA ASLI DIKEMBALIKAN ---
             def find_match(row):
-                max_s = 0
+                max_s, m_info = 0, []
+                # Pencarian berdasarkan kolom (NIK/Paspor atau Nama)
                 cols = df_data.columns if metode in ["NIK", "Paspor"] else [c for c in df_data.columns if 'nama' in c.lower()]
                 for c in cols:
                     s = fuzz.token_sort_ratio(q_clean, str(row[c]).lower())
-                    if s >= threshold: max_s = max(max_s, s)
-                return max_s
+                    if s >= threshold:
+                        m_info.append(f"{c} ({s}%)")
+                        if s > max_s: max_s = s
+                return pd.Series([max_s, "Match: " + ", ".join(m_info)]) if max_s > 0 else pd.Series([0, "-"])
+            
             df_temp = df_data.copy()
-            df_temp['_s'] = df_temp.apply(find_match, axis=1)
+            df_temp[['_s', 'KET STATUS']] = df_temp.apply(find_match, axis=1)
             match = df_temp[df_temp['_s'] > 0].copy()
+            
             if not match.empty:
-                found = True; res = match.sort_values('_s', ascending=False).drop(columns=['_s'])
+                found = True
+                res = match.sort_values('_s', ascending=False).drop(columns=['_s'])
                 results_all.append(res)
-                with st.expander(f"🚩 Database: {sn}", expanded=True): st.dataframe(res, hide_index=True, use_container_width=True)
+                with st.expander(f"🚩 Database: {sn}", expanded=True): 
+                    st.dataframe(res, hide_index=True, use_container_width=True)
+        
         if found and is_super_admin:
-            st.download_button("📥 Download Hasil Screening (Excel)", data=pd.concat(results_all).to_csv(index=False), file_name="Hasil.csv", mime="text/csv", use_container_width=True)
+            buf = io.BytesIO()
+            with pd.ExcelWriter(buf) as w: pd.concat(results_all).to_excel(w, index=False)
+            st.download_button("📥 Download Hasil Screening (Excel)", buf.getvalue(), "Hasil.xlsx", use_container_width=True)
 
 if is_super_admin:
     with tabs[1]:
@@ -226,14 +189,14 @@ if is_super_admin:
             st.markdown(f'<div style="background-color: #0068c9; color: white; padding: 15px; border-radius: 10px; text-align: center; height: 100px;"><small>TOTAL DATA</small><br><b>{total_all:,}</b></div>', unsafe_allow_html=True)
         
         st.write("")
-        # Bagian Download & Reset Log Sejajar
         if os.path.exists("log_aktivitas.csv"):
             log_df = pd.read_csv("log_aktivitas.csv")
             l_col1, l_col2 = st.columns(2)
-            l_col1.download_button("📥 Download Log Aktivitas", data=log_df.to_csv(index=False), file_name="Log.csv", use_container_width=True)
+            buf_log = io.BytesIO()
+            with pd.ExcelWriter(buf_log) as w: log_df.to_excel(w, index=False)
+            l_col1.download_button("📥 Download Log Aktivitas", buf_log.getvalue(), "Log.xlsx", use_container_width=True)
             if l_col2.button("🔥 Reset / Hapus Semua Log", use_container_width=True):
                 os.remove("log_aktivitas.csv"); st.rerun()
-        
         st.divider()
         if os.path.exists("log_aktivitas.csv"): st.dataframe(pd.read_csv("log_aktivitas.csv").iloc[::-1], use_container_width=True, hide_index=True)
 
