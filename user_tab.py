@@ -54,20 +54,23 @@ def run_user_management():
         is_registered = not user_db[user_db['Email'] == email].empty
         
         with st.container():
-            # Pembagian kolom (menambahkan kolom No di paling kiri)
             col_no, col_mail, col_role, col_stat, col_act = st.columns([0.3, 2.2, 1, 1, 2.5], vertical_alignment="center")
             
             # Kolom No
             col_no.write(f"{i}")
             
-            # Kolom Email (Mencegah Klik Outlook dengan HTML Span)
-            col_mail.markdown(f'<span style="color: black; text-decoration: none;">{email}</span>', unsafe_allow_html=True)
+            # --- FIX EMAIL: Tulisan Hitam & Tidak Bisa Diklik ---
+            col_mail.markdown(f"""
+                <div style="color: #31333F; pointer-events: none; text-decoration: none; cursor: default;">
+                    {email}
+                </div>
+            """, unsafe_allow_html=True)
             
             # Kolom Peran
             role_color = "#0068c9" if u_role == "Admin" else "#6c757d"
             col_role.markdown(f'<b style="color:{role_color}; font-size:12px;">{u_role.upper()}</b>', unsafe_allow_html=True)
             
-            # Kolom Status
+            # Kolom Status (Badge)
             if is_registered:
                 col_stat.markdown('<div style="text-align:center;"><span style="background-color: #d4edda; color: #155724; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: bold;">AKTIF</span></div>', unsafe_allow_html=True)
             else:
