@@ -104,19 +104,15 @@ with tabs[0]:
     with c2: 
         query = st.text_input("Cari Data:", placeholder=f"Masukkan {metode}...")
     with c3: 
-        threshold = st.slider("🎯 Akurasi Nama (%)", 50, 100, 85)
+        threshold = st.slider("🎯 Akurasi Pencarian (%)", 50, 100, 85)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # LOGIKA VALIDASI NIK 16 DIGIT
+    # VALIDASI NIK
     valid_to_search = True
-    if query:
-        if metode == "NIK":
-            if len(query) != 16:
-                st.warning(f"⚠️ NIK harus berjumlah 16 digit! (Input saat ini: {len(query)} digit)")
-                valid_to_search = False
-        elif metode == "Paspor":
-            # Paspor tidak wajib 16 digit, jadi tetap True
-            valid_to_search = True
+    if query and metode == "NIK":
+        if len(query) != 16:
+            st.warning(f"⚠️ NIK harus berjumlah 16 digit! (Input saat ini: {len(query)} digit)")
+            valid_to_search = False
 
     if query and db and valid_to_search:
         q_clean = " ".join(query.split()).lower()
@@ -128,22 +124,24 @@ with tabs[0]:
                 matches_info = []
                 max_score = 0
                 
-                # Filter kolom berdasarkan metode
-                if metode == "Nama":
+                # LOGIKA BARU: Jika Paspor, cari di SEMUA KOLOM tanpa kecuali
+                if metode == "Paspor":
+                    check_cols = df_data.columns
+                elif metode == "Nama":
                     check_cols = [c for c in df_data.columns if 'nama' in c.lower()]
-                else:
-                    # Untuk NIK/Paspor cek semua kolom yang mengandung kata 'nik' atau 'paspor' atau 'identitas'
-                    check_cols = [c for c in df_data.columns if any(x in c.lower() for x in ['nik', 'paspor', 'identitas', 'no'])]
+                else: # NIK
+                    check_cols = [c for c in df_data.columns if any(x in c.lower() for x in ['nik', 'identitas', 'no'])]
 
                 for c in check_cols:
                     val = " ".join(str(row[c]).split()).lower()
-                    if metode == "Nama":
+                    
+                    # Sekarang Paspor juga pakai Fuzzy Logic agar lebih fleksibel
+                    if metode in ["Nama", "Paspor"]:
                         s = fuzz.token_sort_ratio(q_clean, val)
                         if s >= threshold:
                             matches_info.append(f"{c} ({s}%)")
                             if s > max_score: max_score = s
-                    else:
-                        # Exact Match untuk NIK/Paspor
+                    else: # NIK tetep Exact Match agar akurat
                         if q_clean == val:
                             matches_info.append(f"{c} (Cocok)")
                             max_score = 100
@@ -173,7 +171,7 @@ with tabs[0]:
             st.download_button("📥 Download Hasil Screening (Excel)", buf.getvalue(), "Hasil_Pencarian.xlsx", use_container_width=True)
         
         if not found:
-            st.error("Data tidak ditemukan di semua database.")
+            st.error(f"Data {metode} tidak ditemukan di seluruh database.")
 
 # --- TAB LOG ---
 if is_super_admin:
