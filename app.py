@@ -19,29 +19,26 @@ LINK_SHEETS = {
     "SIPENDAR": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTwj6BDBGvo9yWRYMkPGNxPi9KtLrbU8qT8zA5VdiogRlp1JoxBDADyh3xF2gWROuPS0pBujoYiKUn-/pub?gid=288835560&single=true&output=csv"
 }
 
-# 3. CSS CUSTOM (SIDEBAR HIDE & LAYOUT PRESISI)
+# 3. CSS CUSTOM (STRICT ALIGNMENT)
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { display: none; }
     header[data-testid="stHeader"] { visibility: hidden; height: 0%; }
     footer { visibility: hidden; }
     
-    /* Info User & Header */
     .user-box {
         background-color: #f8f9fa;
-        padding: 10px;
-        border-radius: 10px;
+        padding: 8px 12px;
+        border-radius: 8px;
         border: 1px solid #e6e9ef;
+        margin-bottom: 5px;
     }
     .header-title { 
         color: #1f1f1f; 
-        font-size: 28px; 
+        font-size: 26px; 
         font-weight: 800; 
         text-align: center;
-        margin-top: 5px;
     }
-    
-    /* Kontainer Pencarian */
     .search-box {
         background-color: #f0f2f6; 
         padding: 20px; 
@@ -49,21 +46,17 @@ st.markdown("""
         border-left: 6px solid #0068c9;
         margin-bottom: 20px;
     }
-    
-    /* Kartu Statistik */
     .stat-card {
         padding: 15px; 
         border-radius: 10px; 
         background-color: #ffffff; 
         border: 1px solid #e6e9ef; 
         text-align: center;
-        box-shadow: 0px 2px 4px rgba(0,0,0,0.05);
     }
-
-    /* Styling Button agar Presisi */
+    /* Memastikan button sejajar dan konsisten */
     .stButton > button {
         width: 100%;
-        border-radius: 8px;
+        border-radius: 6px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -101,11 +94,11 @@ if not st.session_state.auth:
     
     if u_email:
         if u_email not in ALLOWED_EMAILS:
-            st.error("Email tidak terdaftar di sistem!")
+            st.error("Email tidak terdaftar!")
         else:
             user_row = df_users[df_users['Email'] == u_email]
             if user_row.empty:
-                st.info(f"Halo {u_email}, silakan buat password untuk akun Anda.")
+                st.info(f"Halo {u_email}, silakan buat password baru.")
                 p1 = st.text_input("Password Baru:", type="password", key="p1")
                 p2 = st.text_input("Konfirmasi Password:", type="password", key="p2")
                 if st.button("Daftarkan Akun"):
@@ -113,7 +106,7 @@ if not st.session_state.auth:
                         new_u = pd.DataFrame([[u_email, hash_pass(p1)]], columns=["Email", "PasswordHash"])
                         pd.concat([df_users, new_u]).to_csv(USER_DB_FILE, index=False)
                         st.success("Berhasil! Silakan masukkan email kembali."); time.sleep(1); st.rerun()
-                    else: st.error("Password tidak cocok atau terlalu pendek!")
+                    else: st.error("Cek password kembali!")
             else:
                 u_pass = st.text_input("Password:", type="password", key=f"p_{st.session_state.form_key}")
                 if st.button("Masuk"):
@@ -121,7 +114,7 @@ if not st.session_state.auth:
                         st.session_state.auth, st.session_state.email_user = True, u_email
                         st.session_state.last_activity = time.time()
                         log_activity(u_email, "Login Success"); st.rerun()
-                    else: st.error("Password yang Anda masukkan salah!")
+                    else: st.error("Password Salah!")
     st.stop()
 
 # --- SETELAH LOGIN ---
@@ -132,42 +125,36 @@ if (time.time() - st.session_state.last_activity) > (5 * 60):
     st.session_state.auth = False; st.rerun()
 st.session_state.last_activity = time.time()
 
-# 7. HEADER (TOMBOL BERJAJAR RAPI)
-head_col1, head_col2 = st.columns([2, 3])
+# 7. HEADER (FIX GAMBAR 1: BUTTON SAMPINGAN)
+head_col1, head_col2 = st.columns([1.5, 3.5])
 
 with head_col1:
-    st.markdown(f'''
-        <div class="user-box">
-            <small style="color: #666;">Login sebagai:</small><br>
-            <span style="color: #0068c9; font-weight: bold;">{st.session_state.email_user}</span>
-        </div>
-    ''', unsafe_allow_html=True)
-    st.write("") # Spasi kecil
-    btn_c1, btn_c2, _ = st.columns([1.2, 1, 1])
-    if btn_c1.button("🔑 Ganti Password"):
+    st.markdown(f'<div class="user-box">👤 <b>{st.session_state.email_user}</b></div>', unsafe_allow_html=True)
+    # Button samping-sampingan rapat
+    btn_area1, btn_area2, _ = st.columns([1, 0.8, 1])
+    if btn_area1.button("🔑 Ganti PW"):
         st.session_state.show_pw_form = not st.session_state.show_pw_form
-    if btn_c2.button("🚪 Logout"):
+    if btn_area2.button("🚪 Out"):
         st.session_state.auth = False; st.rerun()
 
 with head_col2:
     st.markdown('<div class="header-title">SCREENING DATA APU, PPT, DAN PPPSPM</div>', unsafe_allow_html=True)
 
-# FORM GANTI PASSWORD (PRESISI DI BAWAH HEADER)
+# FIX GAMBAR 1: SIMPAN PERUBAHAN SEJAJAR
 if st.session_state.show_pw_form:
-    with st.container():
-        st.write("---")
-        f1, f2, f3 = st.columns([2, 2, 1])
-        old_p = f1.text_input("Password Lama", type="password", key="old_p")
-        new_p = f2.text_input("Password Baru", type="password", key="new_p")
-        st.write("")
-        if f3.button("Simpan Perubahan", key="upd_btn"):
-            df_u = load_user_db()
-            idx = df_u[df_u['Email'] == st.session_state.email_user].index
-            if hash_pass(old_p) == df_u.loc[idx[0], 'PasswordHash'] and len(new_p) >= 4:
-                df_u.loc[idx[0], 'PasswordHash'] = hash_pass(new_p)
-                df_u.to_csv(USER_DB_FILE, index=False)
-                st.success("Sukses!"); time.sleep(1); st.session_state.show_pw_form = False; st.rerun()
-            else: st.error("Gagal verifikasi!")
+    st.write("---")
+    # vertical_alignment="end" memastikan button sejajar dengan kotak input
+    f_col1, f_col2, f_col3 = st.columns([2, 2, 1.5], vertical_alignment="end")
+    old_p = f_col1.text_input("Password Lama", type="password")
+    new_p = f_col2.text_input("Password Baru", type="password")
+    if f_col3.button("💾 Simpan Perubahan", use_container_width=True):
+        df_u = load_user_db()
+        idx = df_u[df_u['Email'] == st.session_state.email_user].index
+        if hash_pass(old_p) == df_u.loc[idx[0], 'PasswordHash'] and len(new_p) >= 4:
+            df_u.loc[idx[0], 'PasswordHash'] = hash_pass(new_p)
+            df_u.to_csv(USER_DB_FILE, index=False)
+            st.success("Tersimpan!"); time.sleep(1); st.session_state.show_pw_form = False; st.rerun()
+        else: st.error("Gagal verifikasi!")
 st.divider()
 
 # 8. LOAD DATA
@@ -183,21 +170,21 @@ db, db_stats, total_all = load_db()
 
 # 9. TABS
 if is_super_admin:
-    tabs = st.tabs(["🔍 Pencarian Data", "📊 Log Aktivitas", "👥 Manajemen User"])
+    tabs = st.tabs(["🔍 Pencarian", "📊 Log Admin", "👥 Manajemen User"])
 else:
-    tabs = st.tabs(["🔍 Pencarian Data"])
+    tabs = st.tabs(["🔍 Pencarian"])
 
 # --- TAB PENCARIAN ---
 with tabs[0]:
     st.markdown('<div class="search-box">', unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 2, 2])
-    with c1: metode = st.radio("Metode Pencarian:", ["Nama", "NIK", "Paspor"], horizontal=True)
-    with c2: query = st.text_input("Masukkan Data Pencarian:", placeholder="Ketik di sini...", key="q_main")
-    with c3: threshold = st.slider("Ambang Akurasi (%)", 50, 100, 85)
+    with c1: metode = st.radio("Metode:", ["Nama", "NIK", "Paspor"], horizontal=True)
+    with c2: query = st.text_input("Cari Data:", placeholder="Ketik di sini...", key="q_main")
+    with c3: threshold = st.slider("Akurasi (%)", 50, 100, 85)
     st.markdown('</div>', unsafe_allow_html=True)
 
     if query:
-        log_activity(st.session_state.email_user, f"Mencari {metode}: {query}")
+        log_activity(st.session_state.email_user, f"Cari {metode}: {query}")
         q_clean = " ".join(query.split()).lower()
         found, results_all = False, []
         for sn, df_data in db.items():
@@ -223,41 +210,39 @@ with tabs[0]:
         if found and is_super_admin:
             buf = io.BytesIO()
             with pd.ExcelWriter(buf) as w: pd.concat(results_all).to_excel(w, index=False)
-            st.download_button("📥 Download Hasil Pencarian (Excel)", buf.getvalue(), "Hasil_Screening.xlsx", use_container_width=True)
-        if not found: st.error("Data tidak ditemukan di seluruh database.")
+            st.download_button("📥 Download Hasil (Excel)", buf.getvalue(), "Hasil.xlsx", use_container_width=True)
 
 # --- TAB LOG ADMIN ---
 if is_super_admin:
     with tabs[1]:
         cols = st.columns(len(db_stats) + 1)
         for i, (name, count) in enumerate(db_stats.items()):
-            cols[i].markdown(f'<div class="stat-card"><small>{name}</small><br><strong style="font-size:18px;">{count:,}</strong></div>', unsafe_allow_html=True)
+            cols[i].markdown(f'<div class="stat-card"><small>{name}</small><br><b>{count:,}</b></div>', unsafe_allow_html=True)
         with cols[-1]:
-            st.markdown(f'<div style="background-color: #0068c9; color: white; padding: 15px; border-radius: 10px; text-align: center;"><small>TOTAL DATA</small><br><strong style="font-size:18px;">{total_all:,}</strong></div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="background-color: #0068c9; color: white; padding: 15px; border-radius: 10px; text-align: center;"><small>TOTAL DATA</small><br><b>{total_all:,}</b></div>', unsafe_allow_html=True)
             st.write("")
             if os.path.exists("log_aktivitas.csv"):
+                # FIX GAMBAR 2: BUTTON IDENTIK (UKURAN & LEBAR)
                 log_df_raw = pd.read_csv("log_aktivitas.csv")
                 buf_log = io.BytesIO()
                 with pd.ExcelWriter(buf_log) as w: log_df_raw.to_excel(w, index=False)
                 st.download_button("📥 Download Seluruh Log", buf_log.getvalue(), "Log_Aktivitas.xlsx", use_container_width=True)
-                if st.button("🔥 Reset / Hapus Semua Log"): 
-                    os.remove("log_aktivitas.csv")
-                    st.rerun()
+                st.write("") # Memberi sedikit jarak antar button agar tidak menempel
+                if st.button("🔥 Reset / Hapus Semua Log", use_container_width=True): 
+                    os.remove("log_aktivitas.csv"); st.rerun()
         st.divider()
         if os.path.exists("log_aktivitas.csv"):
-            st.write("📋 Riwayat Aktivitas Terbaru:")
             st.dataframe(pd.read_csv("log_aktivitas.csv").iloc[::-1], use_container_width=True, hide_index=True)
 
     # --- TAB USER MANAGEMENT ---
     with tabs[2]:
         st.subheader("👥 Kontrol Reset Password")
-        st.info("Gunakan tombol reset jika admin lupa password. Mereka akan diminta membuat password baru saat login kembali.")
         df_u_current = load_user_db()
         for email in ALLOWED_EMAILS:
             c_mail, c_status, c_act = st.columns([2, 1, 1])
             c_mail.write(f"**{email}**")
             is_reg = not df_u_current[df_u_current['Email'] == email].empty
-            c_status.write("✅ Akun Aktif" if is_reg else "⚠️ Belum Registrasi")
+            c_status.write("✅ Aktif" if is_reg else "⚠️ Belum Set")
             if is_reg and c_act.button("Reset Password", key=f"rs_{email}"):
                 df_u_current[df_u_current['Email'] != email].to_csv(USER_DB_FILE, index=False)
-                st.success(f"Akses {email} telah di-reset!"); time.sleep(1); st.rerun()
+                st.success("Berhasil!"); time.sleep(1); st.rerun()
