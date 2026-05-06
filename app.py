@@ -72,20 +72,35 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. LOGIN SYSTEM (VERSI FIX ROLE)
+# 2. LOGIN SYSTEM (DENGAN LIMIT 3X SALAH)
 # ==========================================
 if "auth" not in st.session_state: st.session_state.auth = False
 if "f_key" not in st.session_state: st.session_state.f_key = str(uuid.uuid4())
 if "show_pw_form" not in st.session_state: st.session_state.show_pw_form = False
 
-# Ambil data whitelist sebagai DataFrame
+# Inisialisasi penghitung salah password
+if "login_attempts" not in st.session_state:
+    st.session_state.login_attempts = 0
+
+# Load Whitelist
 df_w = load_whitelist()
 
 if not st.session_state.auth:
     st.title("🔐 Login Screening System")
+    
+    # CEK: Jika sudah salah 3x, kunci form login
+    if st.session_state.login_attempts >= 3:
+        st.error("❌ Akun Terkunci! Anda telah salah memasukkan password sebanyak 3 kali.")
+        st.info("Silakan hubungi Admin untuk melakukan reset password agar Anda bisa mencoba kembali.")
+        
+        # Tombol logout/kembali untuk membersihkan email yang tertulis
+        if st.button("Kembali"):
+            st.session_state.login_attempts = 0
+            st.rerun()
+        st.stop() # Hentikan proses di sini, jangan tampilkan form password lagi
+
     email_in = st.text_input("Email:", key=f"e_{st.session_state.f_key}").lower().strip()
     
-    # PERBAIKAN DI SINI: Cek email di dalam kolom DataFrame
     if email_in in df_w['Email'].values:
         db_u = load_user_db()
         user_row = db_u[db_u['Email'] == email_in]
@@ -98,17 +113,24 @@ if not st.session_state.auth:
                 st.success("Berhasil! Silakan Login."); time.sleep(1); st.rerun()
         else:
             pwd = st.text_input("Password:", type="password", key=f"p_{st.session_state.f_key}")
+            
             if st.button("Masuk"):
                 if hash_pass(pwd) == user_row.iloc[0]['PasswordHash']:
-                    # Berhasil Login
-                    st.session_state.auth = True
-                    st.session_state.user = email_in
+                    # Berhasil Login: Reset hitungan salah jadi 0
+                    st.session_state.login_attempts = 0
+                    st.session_state.auth, st.session_state.user = True, email_in
                     log_activity(email_in, "Login")
                     st.rerun()
-                else: 
-                    st.error("Password Salah!")
+                else:
+                    # Gagal Login: Tambah hitungan salah
+                    st.session_state.login_attempts += 1
+                    sisa = 3 - st.session_state.login_attempts
+                    if sisa > 0:
+                        st.error(f"Password Salah! Sisa percobaan: {sisa} kali lagi.")
+                    else:
+                        st.rerun() # Bakal masuk ke kondisi terkunci di atas
     elif email_in != "":
-        st.error("Email Anda tidak terdaftar di Whitelist. Hubungi Admin.")
+        st.error("Email tidak terdaftar!")
     st.stop()
 
 # ==========================================
