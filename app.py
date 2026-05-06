@@ -6,11 +6,7 @@ import io
 from datetime import datetime
 
 # 1. KONFIGURASI HALAMAN
-st.set_page_config(
-    page_title="Screening System", 
-    layout="wide", 
-    initial_sidebar_state="collapsed"
-)
+st.set_page_config(page_title="Screening System", layout="wide", initial_sidebar_state="collapsed")
 
 # 2. CSS CUSTOM
 st.markdown("""
@@ -30,11 +26,20 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. FUNGSI LOGGING (SIMPEL TANPA DETAIL)
+# 3. FUNGSI LOGGING (DENGAN AUTO-REPAIR)
 def log_activity(email, action):
     log_file = "log_aktivitas.csv"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # CEK OTOMATIS: Kalau file log rusak/error, hapus langsung biar diganti yang baru
+    if os.path.exists(log_file):
+        try:
+            pd.read_csv(log_file) # Tes baca file
+        except:
+            os.remove(log_file) # Hapus kalau error
+            
     new_data = pd.DataFrame([[now, email, action]], columns=["Waktu", "User", "Aktivitas"])
+    
     if not os.path.isfile(log_file):
         new_data.to_csv(log_file, index=False)
     else:
@@ -108,7 +113,7 @@ with tab_screening:
             found = False
             results = []
             target_sheets = ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']
-            log_activity(st.session_state.email_user, "Cari Data")
+            log_activity(st.session_state.email_user, f"Cari {metode}")
 
             for sn in target_sheets:
                 if sn in db:
@@ -140,11 +145,8 @@ with tab_screening:
                         match = match.sort_values('SKOR', ascending=False)
                         results.append(match)
                         with st.expander(f"🚩 Database: {sn} ({len(match)} ditemukan)", expanded=True):
-                            # HIGHLIGHT PERBAIKAN: Gunakan Styler dengan benar
-                            def color_match(val):
-                                return 'background-color: #ffffcc'
-                            
-                            styled_df = match.style.applymap(color_match, subset=['ALASAN MATCH'])
+                            # Beri warna kuning pada kolom alasan
+                            styled_df = match.style.applymap(lambda x: 'background-color: #ffffcc', subset=['ALASAN MATCH'])
                             st.dataframe(styled_df, hide_index=True, use_container_width=True)
 
             if found and can_download:
@@ -173,4 +175,4 @@ if tab_log and is_admin:
                     df_l = pd.read_csv("log_aktivitas.csv").iloc[::-1]
                     st.dataframe(df_l, use_container_width=True, hide_index=True)
                 except:
-                    st.error("Log error. Silakan hapus file log_aktivitas.csv")
+                    st.info("Log sedang di-reset...")
