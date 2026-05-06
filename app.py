@@ -8,14 +8,14 @@ from datetime import datetime
 # 1. KONFIGURASI HALAMAN
 st.set_page_config(page_title="Screening System", layout="wide", initial_sidebar_state="collapsed")
 
-# 2. CSS CUSTOM
+# 2. CSS CUSTOM (HAPUS HEADER)
 st.markdown("""
     <style>
     header[data-testid="stHeader"] { visibility: hidden; height: 0%; }
     footer { visibility: hidden; }
-    .user-info { color: black !important; font-weight: bold; margin-bottom: 0px; }
+    .user-info { color: black !important; font-weight: bold; }
     .block-container { padding-top: 1rem; }
-    .stButton > button { width: auto !important; height: auto !important; padding: 2px 15px !important; font-size: 12px !important; }
+    .stButton > button { width: auto; padding: 2px 15px; font-size: 12px; }
     .search-container {
         background-color: #f0f2f6;
         padding: 15px;
@@ -26,17 +26,17 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. FUNGSI LOGGING (DENGAN AUTO-REPAIR)
+# 3. FUNGSI LOGGING (ANTI ERROR & AUTO REPAIR)
 def log_activity(email, action):
     log_file = "log_aktivitas.csv"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    # CEK OTOMATIS: Kalau file log rusak/error, hapus langsung biar diganti yang baru
+    # Kalau file log rusak/error, langsung hapus otomatis biar gak ParserError
     if os.path.exists(log_file):
         try:
-            pd.read_csv(log_file) # Tes baca file
+            pd.read_csv(log_file)
         except:
-            os.remove(log_file) # Hapus kalau error
+            os.remove(log_file)
             
     new_data = pd.DataFrame([[now, email, action]], columns=["Waktu", "User", "Aktivitas"])
     
@@ -99,13 +99,10 @@ else:
 with tab_screening:
     if db:
         st.markdown('<div class="search-container">', unsafe_allow_html=True)
-        col_metode, col_cari, col_slide = st.columns([1, 2, 2])
-        with col_metode:
-            metode = st.radio("Metode:", ["Nama", "NIK / Paspor"], horizontal=True)
-        with col_cari:
-            query = st.text_input("Cari Data:", placeholder="Nama / NIK...")
-        with col_slide:
-            threshold = st.slider("🎯 Akurasi (%)", 50, 100, 85)
+        col_m, col_c, col_s = st.columns([1, 2, 2])
+        with col_m: metode = st.radio("Metode:", ["Nama", "NIK / Paspor"], horizontal=True)
+        with col_c: query = st.text_input("Cari Data:", placeholder="Ketik Nama/NIK...")
+        with col_s: threshold = st.slider("🎯 Akurasi (%)", 50, 100, 85)
         st.markdown('</div>', unsafe_allow_html=True)
 
         if query:
@@ -119,7 +116,7 @@ with tab_screening:
                 if sn in db:
                     df = db[sn].copy()
                     
-                    def check_row(row):
+                    def process_row(row):
                         best_s = 0
                         reason = "-"
                         cols = [c for c in df.columns if 'nama' in c.lower()] if metode == "Nama" else df.columns
@@ -129,14 +126,14 @@ with tab_screening:
                                 s = fuzz.token_sort_ratio(q_clean, val)
                                 if s > best_s:
                                     best_s = s
-                                    reason = f"Kemiripan di kolom '{c}'"
+                                    reason = f"Nama mirip di: {c}"
                             else:
                                 if q_clean == val:
                                     best_s = 100
-                                    reason = f"Cocok di kolom '{c}'"
+                                    reason = f"NIK Cocok di: {c}"
                         return pd.Series([best_s, reason])
 
-                    df[['SKOR', 'ALASAN MATCH']] = df.apply(check_row, axis=1)
+                    df[['SKOR', 'ALASAN MATCH']] = df.apply(process_row, axis=1)
                     limit = threshold if metode == "Nama" else 100
                     match = df[df['SKOR'] >= limit].copy()
                     
@@ -144,10 +141,9 @@ with tab_screening:
                         found = True
                         match = match.sort_values('SKOR', ascending=False)
                         results.append(match)
-                        with st.expander(f"🚩 Database: {sn} ({len(match)} ditemukan)", expanded=True):
-                            # Beri warna kuning pada kolom alasan
-                            styled_df = match.style.applymap(lambda x: 'background-color: #ffffcc', subset=['ALASAN MATCH'])
-                            st.dataframe(styled_df, hide_index=True, use_container_width=True)
+                        with st.expander(f"🚩 Database: {sn}", expanded=True):
+                            # Tampilkan tabel standar (Tanpa styling yang bikin error)
+                            st.dataframe(match, hide_index=True, use_container_width=True)
 
             if found and can_download:
                 st.divider()
@@ -157,22 +153,11 @@ with tab_screening:
                 st.download_button("📥 Download Hasil", buf.getvalue(), "Hasil.xlsx", use_container_width=True)
             elif query and not found:
                 st.warning("Data tidak ditemukan.")
-    else:
-        st.error("File database.xlsx tidak ditemukan.")
+    else: st.error("Database tidak ditemukan.")
 
-# --- TAB 2: LOG & STATISTIK ---
+# --- TAB 2: LOG ---
 if tab_log and is_admin:
     with tab_log:
-        cl, cr = st.columns([1, 2])
-        with cl:
-            st.subheader("📊 Statistik")
-            if db_stats:
-                st.table(pd.DataFrame(list(db_stats.items()), columns=['Nama Sheet', 'Total Data']))
-        with cr:
-            st.subheader("📜 Log Aktivitas")
-            if os.path.exists("log_aktivitas.csv"):
-                try:
-                    df_l = pd.read_csv("log_aktivitas.csv").iloc[::-1]
-                    st.dataframe(df_l, use_container_width=True, hide_index=True)
-                except:
-                    st.info("Log sedang di-reset...")
+        if os.path.exists("log_aktivitas.csv"):
+            df_l = pd.read_csv("log_aktivitas.csv").iloc[::-1]
+            st.dataframe(df_l, use_container_width=True, hide_index=True)
