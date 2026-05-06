@@ -4,7 +4,7 @@ from thefuzz import fuzz
 import os
 import io
 
-# 1. KONFIGURASI HALAMAN (Paksa sidebar terbuka agar tidak 'hilang')
+# 1. KONFIGURASI HALAMAN (Initial sidebar expanded agar tidak tertutup otomatis)
 st.set_page_config(
     page_title="Screening System", 
     layout="wide", 
@@ -29,19 +29,24 @@ if not st.session_state.auth:
             st.error("Email tidak terdaftar!")
     st.stop()
 
-# 3. SIDEBAR (STRUKTUR PALING STABIL)
-# Kita susun vertikal saja agar tidak ada elemen yang tertutup kolom
-st.sidebar.write(f"👤 **User:**")
-st.sidebar.code(st.session_state.email_user, language=None) # Pakai box code agar email 1 baris & jelas
+# 3. SIDEBAR (STRUKTUR STABIL - LOGOUT DI BAWAH)
+# Tampilkan Info User di paling atas
+st.sidebar.write(f"👤 **User Login:**")
+st.sidebar.info(st.session_state.email_user)
 
 st.sidebar.divider()
 
+# Pengaturan Kemiripan
 st.sidebar.write("🎯 **Akurasi Nama (%)**")
-threshold = st.sidebar.slider("Geser untuk atur sensitivitas", 50, 100, 85, label_visibility="collapsed")
+threshold = st.sidebar.slider("Akurasi", 50, 100, 85, label_visibility="collapsed")
+st.sidebar.caption("Geser ke kanan untuk hasil lebih akurat.")
+
+# Paksa tombol Logout ke bawah dengan spacer (empty space)
+for _ in range(15): 
+    st.sidebar.write("")
 
 st.sidebar.divider()
-
-if st.sidebar.button("🚪 Log Out", use_container_width=True):
+if st.sidebar.button("🚪 Keluar / Logout", use_container_width=True):
     st.session_state.auth = False
     st.rerun()
 
@@ -64,8 +69,8 @@ def load_db(path):
 db = load_db("database.xlsx")
 
 if db:
-    metode = st.radio("Pilih Metode Pencarian:", ["Nama", "NIK / Paspor"], horizontal=True)
-    query = st.text_input("Masukkan Data Nasabah:", placeholder="Ketik nama atau NIK di sini...")
+    metode = st.radio("Metode Pencarian:", ["Nama", "NIK / Paspor"], horizontal=True)
+    query = st.text_input("Cari Data:", placeholder="Masukkan Nama atau NIK...")
 
     if query:
         q_clean = " ".join(query.split()).lower()
@@ -106,8 +111,8 @@ if db:
             final_df = pd.concat(results)
             buf = io.BytesIO()
             with pd.ExcelWriter(buf) as w: final_df.to_excel(w, index=False)
-            st.download_button("📥 Download Hasil Excel", buf.getvalue(), "Hasil_Screening.xlsx", use_container_width=True)
+            st.download_button("📥 Download Hasil (Excel)", buf.getvalue(), "Hasil_Screening.xlsx", use_container_width=True)
         elif query:
-            st.warning("Data tidak ditemukan di database.")
+            st.warning("Data tidak ditemukan.")
 else:
-    st.error("File 'database.xlsx' tidak ditemukan di sistem.")
+    st.error("File 'database.xlsx' tidak ditemukan.")
