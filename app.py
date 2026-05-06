@@ -4,18 +4,15 @@ from thefuzz import fuzz
 import os
 import io
 
-# 1. SETUP HALAMAN
-st.set_page_config(page_title="Screening System", layout="wide")
+# 1. KONFIGURASI DASAR
+st.set_page_config(page_title="Screening System", layout="wide", initial_sidebar_state="expanded")
 
-# CSS Minimalis: Menghilangkan elemen pengganggu tapi tetap mempertahankan fungsionalitas sidebar
+# --- CSS MINIMALIS (HANYA UNTUK MERAPIKAN JARAK) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {background-color: transparent;}
-    [data-testid="stSidebarUserContent"] {display: none;}
-    /* Membuat jarak yang lebih rapat di sidebar */
-    .block-container {padding-top: 2rem;}
+    .block-container {padding-top: 1rem;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -37,25 +34,23 @@ if not st.session_state.auth:
             st.error("Email tidak terdaftar!")
     st.stop()
 
-# 3. SIDEBAR (SIMPEL & BERSIH)
+# 3. SIDEBAR (DIPAKSA MUNCUL & DESAIN SIMPEL)
 with st.sidebar:
-    # Baris User & Logout (Sejajar & Rapi)
-    c1, c2 = st.columns([3, 1.5])
-    with c1:
-        st.caption("User login:")
-        st.write(f"**{st.session_state.email_user}**")
-    with c2:
-        st.write("") # Spacer
-        if st.button("Logout", use_container_width=True):
+    # Baris User & Logout Sejajar
+    col_a, col_b = st.columns([2, 1])
+    with col_a:
+        st.write(f"👤 **{st.session_state.email_user}**")
+    with col_b:
+        if st.button("Logout"):
             st.session_state.auth = False
             st.rerun()
     
     st.divider()
     
-    # Pengaturan (Slider Minimalis)
-    st.subheader("Ambang Kemiripan")
-    threshold = st.slider("%", 50, 100, 85)
-    st.caption("Sensitivitas pencarian nama.")
+    # Pengaturan (Slider)
+    st.write("🎯 **Akurasi Nama (%)**")
+    threshold = st.slider("", 50, 100, 85, label_visibility="collapsed")
+    st.caption("Geser untuk atur sensitivitas pencarian.")
 
 # 4. APLIKASI UTAMA
 st.title("🔍 Screening APU, PPT, dan PPPSPM")
@@ -76,18 +71,15 @@ def load_db(path):
 db = load_db("database.xlsx")
 
 if db:
-    # Pilihan Metode & Input
-    metode = st.radio("Metode:", ["Nama", "NIK / Paspor"], horizontal=True)
-    query = st.text_input("Cari Data Nasabah:", placeholder="Masukkan nama atau NIK...")
+    metode = st.radio("Metode Pencarian:", ["Nama", "NIK / Paspor"], horizontal=True)
+    query = st.text_input("Masukkan Data Nasabah:", placeholder="Cari...")
 
     if query:
         q_clean = " ".join(query.split()).lower()
         found = False
         results = []
         
-        # Urutan Sheet yang di-scan
         target_sheets = ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']
-        
         for sn in target_sheets:
             if sn in db:
                 df = db[sn].copy()
@@ -121,8 +113,8 @@ if db:
             final_df = pd.concat(results)
             buf = io.BytesIO()
             with pd.ExcelWriter(buf) as w: final_df.to_excel(w, index=False)
-            st.download_button("📥 Download Excel", buf.getvalue(), "Hasil_Screening.xlsx", use_container_width=True)
+            st.download_button("📥 Download Hasil Excel", buf.getvalue(), "Hasil.xlsx", use_container_width=True)
         elif query:
             st.warning("Data tidak ditemukan.")
 else:
-    st.error("File 'database.xlsx' tidak ditemukan.")
+    st.error("Pastikan file 'database.xlsx' ada di folder yang sama.")
