@@ -4,113 +4,93 @@ from thefuzz import fuzz
 import os
 import io
 
-# 1. KONFIGURASI HALAMAN
-st.set_page_config(page_title="Screening APU, PPT, dan PPPSPM", layout="wide")
+# 1. SETUP HALAMAN
+st.set_page_config(page_title="Screening System", layout="wide")
 
-# --- PERBAIKAN CSS: Header dimunculkan sedikit agar tombol Sidebar tidak hilang ---
-st.markdown("""
-    <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    /* Header tidak di-hidden total agar tombol '>' tetap bisa diklik */
-    header {height: 40px; background-color: transparent;}
-    </style>
-    """, unsafe_allow_html=True)
-
-# 2. SISTEM LOGIN
+# 2. LOGIN SYSTEM
 ALLOWED_EMAILS = ["imanmuhamad9@gmail.com", "admin@perusahaan.com"]
 
 if "auth" not in st.session_state:
     st.session_state.auth = False
 
 if not st.session_state.auth:
-    st.title("🔐 Login Sistem")
-    email = st.text_input("Masukkan Email Anda:").lower().strip()
+    st.title("🔐 Login")
+    user_email = st.text_input("Email:").lower().strip()
     if st.button("Masuk"):
-        if email in ALLOWED_EMAILS:
+        if user_email in ALLOWED_EMAILS:
             st.session_state.auth = True
+            st.session_state.email_user = user_email
             st.rerun()
         else:
             st.error("Email tidak terdaftar!")
     st.stop()
 
-# 3. SIDEBAR (Sekarang aman ditutup-buka)
+# 3. SIDEBAR (Dibuat sederhana agar tombol '>' tidak hilang)
 with st.sidebar:
-    st.title("⚙️ Kontrol Panel")
-    st.write(f"Login: {imanmuhamad9@gmail.com if 'auth' in st.session_state else ''}")
-    st.divider()
-    threshold = st.slider("Ambang Kemiripan (%)", 50, 100, 85)
-    st.divider()
-    if st.button("Logout", use_container_width=True):
+    st.title("⚙️ Panel")
+    st.info(f"User: {st.session_state.email_user}")
+    threshold = st.slider("Kemiripan (%)", 50, 100, 85)
+    if st.button("Logout"):
         st.session_state.auth = False
         st.rerun()
 
-# 4. APLIKASI UTAMA
+# 4. MAIN APP
 st.title("🔍 Screening APU, PPT, dan PPPSPM")
 
 @st.cache_data
-def load_data(file_path):
-    if os.path.exists(file_path):
-        try:
-            data = pd.read_excel(file_path, sheet_name=None)
-            for sheet in data:
-                for col in data[sheet].columns:
-                    if pd.api.types.is_datetime64_any_dtype(data[sheet][col]):
-                        data[sheet][col] = data[sheet][col].dt.strftime('%Y-%m-%d')
-            return data
-        except:
-            return None
+def load_db(path):
+    if os.path.exists(path):
+        data = pd.read_excel(path, sheet_name=None)
+        for s in data:
+            for c in data[s].columns:
+                if pd.api.types.is_datetime64_any_dtype(data[s][c]):
+                    data[s][c] = data[s][c].dt.strftime('%Y-%m-%d')
+        return data
     return None
 
-db_sheets = load_data("database.xlsx")
+db = load_db("database.xlsx")
 
-if db_sheets:
-    metode = st.radio("Pilih Metode:", ("Nama", "NIK / Nomor Paspor"), horizontal=True)
-    query = st.text_input("Input Data Nasabah:", placeholder="Ketik di sini...")
+if db:
+    metode = st.radio("Metode:", ["Nama", "NIK / Paspor"], horizontal=True)
+    query = st.text_input("Cari Data:")
 
     if query:
         q_clean = " ".join(query.split()).lower()
         found = False
-        all_res = []
+        results = []
         
-        # Daftar sheet yang mau di-scan
-        target = ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']
-        
-        for sn in target:
-            if sn in db_sheets:
-                df = db_sheets[sn].copy()
+        for sheet_name in ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']:
+            if sheet_name in db:
+                df = db[sheet_name].copy()
                 
-                def check_row(r):
-                    score = 0
-                    # Scan kolom nama saja jika metode Nama, scan semua jika NIK
+                def score_row(row):
+                    top_score = 0
+                    # Jika Nama: scan kolom yang ada kata 'nama'. Jika NIK: scan semua.
                     cols = [c for c in df.columns if 'nama' in c.lower()] if metode == "Nama" else df.columns
                     for c in cols:
-                        if pd.notna(r[c]):
-                            v = " ".join(str(r[c]).split()).lower()
-                            if metode == "Nama":
-                                s = fuzz.token_sort_ratio(q_clean, v)
-                                if s >= threshold: score = max(score, s)
-                            else:
-                                if q_clean == v: score = 100
-                    return score
+                        val = " ".join(str(row[c]).split()).lower()
+                        if metode == "Nama":
+                            s = fuzz.token_sort_ratio(q_clean, val)
+                            top_score = max(top_score, s)
+                        else:
+                            if q_clean == val: top_score = 100
+                    return top_score
 
-                df.insert(0, 'SKOR_KEMIRIPAN', df.apply(check_row, axis=1))
-                res = df[df['SKOR_KEMIRIPAN'] > 0].copy()
+                df.insert(0, 'SKOR', df.apply(score_row, axis=1))
+                match = df[df['SKOR'] >= (threshold if metode == "Nama" else 100)].copy()
                 
-                if not res.empty:
+                if not match.empty:
                     found = True
-                    res = res.sort_values('SKOR_KEMIRIPAN', ascending=False)
-                    all_res.append(res)
-                    with st.expander(f"🚩 Database: {sn} (Ditemukan {len(res)} data)", expanded=True):
-                        st.dataframe(res, hide_index=True)
+                    results.append(match)
+                    with st.expander(f"🚩 {sheet_name}"):
+                        st.dataframe(match.sort_values('SKOR', ascending=False), hide_index=True)
 
         if found:
-            st.divider()
-            final = pd.concat(all_res)
-            out = io.BytesIO()
-            with pd.ExcelWriter(out) as w: final.to_excel(w, index=False)
-            st.download_button("📥 Download Hasil Lengkap", out.getvalue(), "Hasil_Screening.xlsx")
+            final_df = pd.concat(results)
+            buf = io.BytesIO()
+            with pd.ExcelWriter(buf) as w: final_df.to_excel(w, index=False)
+            st.download_button("📥 Download Excel", buf.getvalue(), "hasil.xlsx")
         elif query:
-            st.warning(f"Data '{query}' tidak ditemukan.")
+            st.warning("Tidak ditemukan.")
 else:
-    st.error("Pastikan file 'database.xlsx' sudah ada.")
+    st.error("File database.xlsx tidak ada.")
