@@ -20,7 +20,7 @@ LINK_SHEETS = {
     "SIPENDAR": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTwj6BDBGvo9yWRYMkPGNxPi9KtLrbU8qT8zA5VdiogRlp1JoxBDADyh3xF2gWROuPS0pBujoYiKUn-/pub?gid=288835560&single=true&output=csv"
 }
 
-# 3. CSS CUSTOM (DESAIN TETAP PRESISI)
+# 3. CSS CUSTOM
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { display: none; }
@@ -49,7 +49,15 @@ def hash_pass(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
 USER_DB_FILE = "users_db.csv"
-ALLOWED_EMAILS = ["imanmuhamad9@gmail.com", "x@gmail.com", "xx@gmail.com"]
+WHITELIST_FILE = "whitelist.csv"
+
+def load_whitelist():
+    if os.path.exists(WHITELIST_FILE):
+        return pd.read_csv(WHITELIST_FILE)['Email'].tolist()
+    return ["imanmuhamad9@gmail.com"] # Default Admin Utama
+
+def save_whitelist(email_list):
+    pd.DataFrame(email_list, columns=['Email']).to_csv(WHITELIST_FILE, index=False)
 
 def load_user_db():
     if os.path.exists(USER_DB_FILE): return pd.read_csv(USER_DB_FILE)
@@ -61,6 +69,7 @@ if "form_key" not in st.session_state: st.session_state.form_key = str(uuid.uuid
 if "show_pw_form" not in st.session_state: st.session_state.show_pw_form = False
 
 # 6. LOGIN SYSTEM
+ALLOWED_EMAILS = load_whitelist()
 if not st.session_state.auth:
     st.title("🔐 Login Screening System")
     df_users = load_user_db()
@@ -150,12 +159,10 @@ with tabs[0]:
     
     if query:
         q_strip = query.replace(" ", "").replace(".", "").replace("-", "")
-        
-        # --- LOGIKA VALIDASI BARU ---
         if metode == "Nama" and any(char.isdigit() for char in query):
             st.error("❌ Pencarian Nama tidak boleh mengandung angka!")
         elif metode == "NIK" and len(q_strip) < 16:
-            st.error(f"❌ NIK harus minimal 16 digit! (Input Anda: {len(q_strip)} digit)")
+            st.error(f"❌ NIK harus minimal 16 digit!")
         elif metode == "Paspor" and len(q_strip) < 7:
             st.error(f"❌ Nomor Paspor harus minimal 7 karakter!")
         else:
@@ -176,20 +183,17 @@ with tabs[0]:
                 df_temp = df_data.copy()
                 df_temp[['_s', 'KET STATUS']] = df_temp.apply(find_match, axis=1)
                 match = df_temp[df_temp['_s'] > 0].copy()
-                
                 if not match.empty:
                     found = True
                     res = match.sort_values('_s', ascending=False).drop(columns=['_s'])
                     results_all.append(res)
                     with st.expander(f"🚩 Database: {sn}", expanded=True): 
                         st.dataframe(res, hide_index=True, use_container_width=True)
-            
             if found and is_super_admin:
                 buf = io.BytesIO()
                 with pd.ExcelWriter(buf) as w: pd.concat(results_all).to_excel(w, index=False)
-                st.download_button("📥 Download Hasil Screening (Excel)", buf.getvalue(), "Hasil.xlsx", use_container_width=True)
-            elif not found:
-                st.warning("Data tidak ditemukan di database manapun.")
+                st.download_button("📥 Download Hasil Screening", buf.getvalue(), "Hasil.xlsx", use_container_width=True)
+            elif not found: st.warning("Data tidak ditemukan.")
 
 if is_super_admin:
     with tabs[1]:
@@ -198,7 +202,6 @@ if is_super_admin:
             cols_stat[i].markdown(f'<div class="stat-card"><small>{name}</small><br><b>{count:,}</b></div>', unsafe_allow_html=True)
         with cols_stat[-1]:
             st.markdown(f'<div style="background-color: #0068c9; color: white; padding: 15px; border-radius: 10px; text-align: center; height: 100px;"><small>TOTAL DATA</small><br><b>{total_all:,}</b></div>', unsafe_allow_html=True)
-        
         st.write("")
         if os.path.exists("log_aktivitas.csv"):
             log_df = pd.read_csv("log_aktivitas.csv")
@@ -211,68 +214,62 @@ if is_super_admin:
         st.divider()
         if os.path.exists("log_aktivitas.csv"): st.dataframe(pd.read_csv("log_aktivitas.csv").iloc[::-1], use_container_width=True, hide_index=True)
 
-  # --- LANJUTAN KODE SEBELUMNYA (BAGIAN TABS MANAJEMEN USER) ---
-
     with tabs[2]:
         st.subheader("👥 Manajemen Akses & Verifikasi User")
+        df_u_current = load_user_db()
         
-        # 1. FITUR TAMBAH USER BARU (HANYA EMAIL)
+        # 1. TAMBAH USER
         st.markdown('<div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px;">', unsafe_allow_html=True)
         c_add1, c_add2 = st.columns([3, 1], vertical_alignment="bottom")
-        with c_add1:
-            new_email_input = st.text_input("Tambah Email User Baru:", placeholder="contoh: user_baru@gmail.com")
+        with c_add1: new_email = st.text_input("Tambah Email User Baru:", placeholder="contoh@gmail.com")
         with c_add2:
             if st.button("➕ Tambahkan User", use_container_width=True):
-                if new_email_input and "@" in new_email_input:
-                    if new_email_input.lower() not in ALLOWED_EMAILS:
-                        # Logic: Tambahkan ke list ALLOWED_EMAILS (dalam database/file)
-                        # Di sini kita simulasikan dengan menambahkan ke list global
-                        # Agar permanen, Anda bisa mengupdate file config atau list di baris atas
-                        st.success(f"User {new_email_input} berhasil didaftarkan!")
-                        log_activity(st.session_state.email_user, f"Menambah User Baru: {new_email_input}")
-                        # Catatan: Untuk permanen, pastikan variabel ALLOWED_EMAILS di baris atas diupdate
-                    else:
-                        st.warning("Email sudah terdaftar dalam sistem.")
-                else:
-                    st.error("Masukkan format email yang benar!")
+                if new_email and "@" in new_email:
+                    low_mail = new_email.lower().strip()
+                    if low_mail not in ALLOWED_EMAILS:
+                        ALLOWED_EMAILS.append(low_mail)
+                        save_whitelist(ALLOWED_EMAILS)
+                        st.success(f"Berhasil!"); time.sleep(1); st.rerun()
+                    else: st.warning("Sudah terdaftar.")
+                else: st.error("Format salah!")
         st.markdown('</div>', unsafe_allow_html=True)
 
         st.divider()
 
-        # 2. TABEL MONITORING USER
-        df_u_current = load_user_db()
-        
-        # Buat Header Tabel yang rapi
-        h_c1, h_c2, h_c3, h_c4 = st.columns([2, 1, 1, 1])
+        # 2. TABEL MONITORING (Font Hitam, Email Langsung, Tombol Delete)
+        h_c1, h_c2, h_c3, h_c4 = st.columns([2, 1, 1, 2])
         h_c1.write("**Email User**")
         h_c2.write("**Status Akun**")
-        h_c3.write("**Verifikasi Pass**")
-        h_c4.write("**Aksi**")
+        h_c3.write("**Verifikasi**")
+        h_c4.write("**Aksi Manajemen**")
         
         for email in ALLOWED_EMAILS:
-            user_data = df_u_current[df_u_current['Email'] == email]
-            is_registered = not user_data.empty
+            user_registered = not df_u_current[df_u_current['Email'] == email].empty
+            c_mail, c_stat, c_ver, c_act = st.columns([2, 1, 1, 2])
             
-            c_mail, c_stat, c_verif, c_reset = st.columns([2, 1, 1, 1])
+            c_mail.write(email) # Nama email langsung
             
-            # Kolom Email
-            c_mail.write(f"email: `{email}`")
+            if user_registered:
+                c_stat.write("Aktif")
+                c_ver.write("Verified")
+            else:
+                c_stat.write("Terdaftar")
+                c_ver.write("Belum Verifikasi")
             
-            # Kolom Status & Verifikasi
-            if is_registered:
-                c_stat.markdown("<span style='color: green;'>✅ Aktif</span>", unsafe_allow_html=True)
-                c_verif.markdown("<span style='color: blue;'>Verified</span>", unsafe_allow_html=True)
-                
-                # Fitur Reset Password
-                if c_reset.button("🔄 Reset Password", key=f"rs_{email}", use_container_width=True):
-                    # Hapus dari database agar user diminta buat pass baru lagi pas login
+            # AKSI
+            btn_col1, btn_col2 = c_act.columns(2)
+            if user_registered:
+                if btn_col1.button("🔄 Reset", key=f"rs_{email}", use_container_width=True):
                     df_u_new = df_u_current[df_u_current['Email'] != email]
                     df_u_new.to_csv(USER_DB_FILE, index=False)
-                    log_activity(st.session_state.email_user, f"Reset Password User: {email}")
-                    st.success(f"Password {email} di-reset!"); time.sleep(1); st.rerun()
-            else:
-                c_stat.markdown("<span style='color: orange;'>⚠️ Terdaftar</span>", unsafe_allow_html=True)
-                c_verif.markdown("<span style='color: red;'>Belum Verifikasi</span>", unsafe_allow_html=True)
-                c_reset.write("---") # User belum login pertama kali, jadi belum ada pass untuk di-reset
+                    st.success("Reset!"); time.sleep(0.5); st.rerun()
+            else: btn_col1.write("")
 
-# --- AKHIR KODE ---
+            if email != "imanmuhamad9@gmail.com": # Admin ga bisa hapus diri sendiri
+                if btn_col2.button("🗑️ Hapus", key=f"del_{email}", use_container_width=True):
+                    ALLOWED_EMAILS.remove(email)
+                    save_whitelist(ALLOWED_EMAILS)
+                    df_u_new = df_u_current[df_u_current['Email'] != email]
+                    df_u_new.to_csv(USER_DB_FILE, index=False)
+                    st.error("Dihapus!"); time.sleep(0.5); st.rerun()
+            else: btn_col2.write("🛡️ Super")
