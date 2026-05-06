@@ -55,7 +55,7 @@ with st.sidebar:
     # Menggunakan satu blok HTML agar "User Login" dan "Email" rapat
     st.markdown(f'''
         <div class="user-box">
-            <b>User Login:</b><br>
+            <b>👤User Login:</b><br>
             {st.session_state.email_user}
         </div>
     ''', unsafe_allow_html=True)
