@@ -7,136 +7,97 @@ import io
 # 1. KONFIGURASI HALAMAN
 st.set_page_config(page_title="Screening APU, PPT, dan PPPSPM", layout="wide")
 
-# --- CSS (Hanya sembunyikan profil, sidebar tetap wajib ada) ---
+# --- SEMBUNYIKAN MENU ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    [data-testid="stSidebarUserContent"] {display: none;}
     </style>
     """, unsafe_allow_html=True)
 
-# ---------------------------------------------------------
-# 2. INISIALISASI SESSION STATE
-# ---------------------------------------------------------
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-if "user_email" not in st.session_state:
-    st.session_state.user_email = ""
-
+# 2. SISTEM LOGIN SEDERHANA
 ALLOWED_EMAILS = ["imanmuhamad9@gmail.com", "admin@perusahaan.com"]
 
-# ---------------------------------------------------------
-# 3. SIDEBAR (DIBUAT DULUAN SUPAYA TIDAK HILANG)
-# ---------------------------------------------------------
-with st.sidebar:
-    st.title("⚙️ PENGATURAN")
-    if st.session_state.authenticated:
-        st.info(f"User: {st.session_state.user_email}")
-        
-        st.divider()
-        # SLIDER PARAMETER
-        threshold = st.slider("Ambang Kemiripan (%)", 50, 100, 85)
-        st.caption("Atur sensitivitas nama di sini.")
-        
-        st.divider()
-        if st.button("🚪 Log Out", use_container_width=True):
-            st.session_state.authenticated = False
-            st.rerun()
-    else:
-        st.warning("Silakan Login")
-        # Definisikan threshold default agar tidak error saat login belum dilakukan
-        threshold = 85 
+if "auth" not in st.session_state:
+    st.session_state.auth = False
 
-# ---------------------------------------------------------
-# 4. LOGIKA HALAMAN (LOGIN VS KONTEN)
-# ---------------------------------------------------------
-if not st.session_state.authenticated:
-    st.title("🔐 Akses Terbatas")
-    email_input = st.text_input("Masukkan Email:").lower().strip()
+if not st.session_state.auth:
+    st.title("🔐 Login")
+    email = st.text_input("Masukkan Email Anda:").lower().strip()
     if st.button("Masuk"):
-        if email_input in ALLOWED_EMAILS:
-            st.session_state.authenticated = True
-            st.session_state.user_email = email_input
+        if email in ALLOWED_EMAILS:
+            st.session_state.auth = True
             st.rerun()
         else:
             st.error("Email tidak terdaftar!")
     st.stop()
 
-# --- HALAMAN UTAMA SETELAH LOGIN ---
+# 3. TOMBOL LOGOUT & PARAMETER DI SIDEBAR
+st.sidebar.title("Kontrol Panel")
+threshold = st.sidebar.slider("Ambang Kemiripan (%)", 50, 100, 85)
+if st.sidebar.button("Logout"):
+    st.session_state.auth = False
+    st.rerun()
+
+# 4. APLIKASI UTAMA
 st.title("🔍 Screening APU, PPT, dan PPPSPM")
 
 @st.cache_data
-def load_internal_data(file_path):
+def load_data(file_path):
     if os.path.exists(file_path):
-        try:
-            data = pd.read_excel(file_path, sheet_name=None)
-            for sheet in data:
-                for col in data[sheet].columns:
-                    if pd.api.types.is_datetime64_any_dtype(data[sheet][col]):
-                        data[sheet][col] = data[sheet][col].dt.strftime('%Y-%m-%d')
-            return data
-        except Exception as e:
-            st.error(f"Gagal baca DB: {e}")
-            return None
+        data = pd.read_excel(file_path, sheet_name=None)
+        for sheet in data:
+            for col in data[sheet].columns:
+                if pd.api.types.is_datetime64_any_dtype(data[sheet][col]):
+                    data[sheet][col] = data[sheet][col].dt.strftime('%Y-%m-%d')
+        return data
     return None
 
-NAMA_FILE_DATABASE = "database.xlsx"
-db_sheets = load_internal_data(NAMA_FILE_DATABASE)
+db_sheets = load_data("database.xlsx")
 
 if db_sheets:
-    metode = st.radio("Metode:", ("Nama", "NIK / Nomor Paspor"), horizontal=True)
-    search_query = st.text_input("Masukkan Data:")
+    metode = st.radio("Pilih Metode:", ("Nama", "NIK / Nomor Paspor"), horizontal=True)
+    query = st.text_input("Input Data Nasabah:")
 
-    if search_query:
-        query_clean = " ".join(search_query.split()).lower()
-        found_any_global = False
-        all_results = []
+    if query:
+        q_clean = " ".join(query.split()).lower()
+        found = False
+        all_res = []
         
-        target_sheets = ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']
-        for sheet_name in target_sheets:
-            if sheet_name in db_sheets:
-                df = db_sheets[sheet_name].copy()
+        target = ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']
+        for sn in target:
+            if sn in db_sheets:
+                df = db_sheets[sn].copy()
                 
-                def check_row(row):
-                    m_score = 0
-                    m_cols = []
+                def check(r):
+                    score = 0
                     cols = [c for c in df.columns if 'nama' in c.lower()] if metode == "Nama" else df.columns
                     for c in cols:
-                        if pd.notna(row[c]):
-                            db_val = " ".join(str(row[c]).split()).lower()
+                        if pd.notna(r[c]):
+                            v = " ".join(str(r[c]).split()).lower()
                             if metode == "Nama":
-                                s = fuzz.token_sort_ratio(query_clean, db_val)
-                                if s >= threshold:
-                                    if s > m_score: m_score = s
-                                    m_cols.append(f"{c} ({s}%)")
+                                s = fuzz.token_sort_ratio(q_clean, v)
+                                if s >= threshold: score = max(score, s)
                             else:
-                                if query_clean == db_val:
-                                    m_score = 100
-                                    m_cols.append(f"{c} (MATCH)")
-                    return m_score, ", ".join(m_cols)
+                                if q_clean == v: score = 100
+                    return score
 
-                res = df.apply(lambda r: pd.Series(check_row(r)), axis=1)
-                df.insert(0, 'SKOR', res[0])
-                df.insert(1, 'LOKASI', res[1])
+                df['SKOR'] = df.apply(check, axis=1)
+                res = df[df['SKOR'] > 0].copy()
                 
-                limit = threshold if metode == "Nama" else 100
-                matches = df[df['SKOR'] >= limit].copy()
-                
-                if not matches.empty:
-                    found_any_global = True
-                    matches = matches.sort_values(by='SKOR', ascending=False)
-                    all_results.append(matches)
-                    with st.expander(f"🚩 {sheet_name}"):
-                        st.dataframe(matches, hide_index=True)
+                if not res.empty:
+                    found = True
+                    all_res.append(res)
+                    with st.expander(f"🚩 Database: {sn}"):
+                        st.dataframe(res.sort_values('SKOR', ascending=False), hide_index=True)
 
-        if found_any_global:
-            final_df = pd.concat(all_results)
-            output = io.BytesIO()
-            with pd.ExcelWriter(output) as w: final_df.to_excel(w, index=False)
-            st.download_button("📥 Download Excel", output.getvalue(), "Hasil.xlsx")
-        elif search_query:
+        if found:
+            final = pd.concat(all_res)
+            out = io.BytesIO()
+            with pd.ExcelWriter(out) as w: final.to_excel(w, index=False)
+            st.download_button("📥 Download Hasil", out.getvalue(), "Hasil.xlsx")
+        elif query:
             st.warning("Data tidak ditemukan.")
 else:
-    st.error("Database tidak ditemukan.")
+    st.error("File 'database.xlsx' tidak ditemukan.")
