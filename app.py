@@ -7,12 +7,13 @@ import io
 # 1. KONFIGURASI HALAMAN
 st.set_page_config(page_title="Screening APU, PPT, dan PPPSPM", layout="wide")
 
-# --- KODE CSS (Sembunyikan Menu, Header, Footer, & Profil) ---
+# --- KODE CSS (HANYA SEMBUNYIKAN HEADER & FOOTER, SIDEBAR TETAP ADA) ---
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
             footer {visibility: hidden;}
             header {visibility: hidden;}
+            /* Menghilangkan foto/profil user saja tanpa menghilangkan sidebarnya */
             [data-testid="stSidebarUserContent"] {display: none;}
             </style>
             """
@@ -38,29 +39,32 @@ if not st.session_state.authenticated:
             st.session_state.user_email = email_input
             st.rerun()
         else:
-            st.error("❌ Email tidak terdaftar.")
+            st.error("❌ Email tidak terdaftar. Hubungi Admin.")
     st.stop()
 
 # ---------------------------------------------------------
-# 3. SIDEBAR (PENGATURAN & LOGOUT)
+# 3. SIDEBAR (PERMANEN - TIDAK DIHILANGKAN)
 # ---------------------------------------------------------
 with st.sidebar:
-    st.title("⚙️ Pengaturan")
-    st.write(f"User: **{st.session_state.user_email}**")
-    
-    # --- SLIDER PARAMETER (Ditaruh di sini supaya selalu muncul) ---
-    st.subheader("Parameter Screening")
-    threshold = st.slider("Ambang Kemiripan Nama (%)", 50, 100, 85, help="Semakin tinggi persen, semakin harus mirip persis.")
+    st.title("⚙️ PENGATURAN")
+    st.info(f"User Login:\n{st.session_state.user_email}")
     
     st.divider()
     
-    # --- TOMBOL LOGOUT ---
+    # SLIDER PARAMETER (Wajib muncul di sini)
+    st.subheader("Parameter Akurasi")
+    threshold = st.slider("Ambang Kemiripan (%)", 50, 100, 85)
+    st.caption("Gunakan slider ini untuk mengatur sensitivitas pencarian nama.")
+    
+    st.divider()
+    
+    # TOMBOL LOGOUT
     if st.button("🚪 Keluar / Log Out", use_container_width=True):
         st.session_state.authenticated = False
         st.rerun()
 
 # ---------------------------------------------------------
-# 4. APLIKASI UTAMA
+# 4. APLIKASI UTAMA (SCREENING)
 # ---------------------------------------------------------
 st.title("🔍 Screening APU, PPT, dan PPPSPM")
 
@@ -84,15 +88,13 @@ NAMA_FILE_DATABASE = "database.xlsx"
 db_sheets = load_internal_data(NAMA_FILE_DATABASE)
 
 if db_sheets:
-    # PILIHAN METODE
     metode = st.radio("Pilih Metode Pencarian:", ("Nama", "NIK / Nomor Paspor"), horizontal=True)
     
     if metode == "Nama":
-        search_query = st.text_input("Masukkan Nama:", placeholder="Contoh: AGUNG GUNARDI")
+        search_query = st.text_input("Masukkan Nama Calon Nasabah:", placeholder="Contoh: AGUNG GUNARDI")
     else:
-        search_query = st.text_input("Masukkan NIK/Paspor:", placeholder="Contoh: D 000974")
+        search_query = st.text_input("Masukkan NIK atau Nomor Paspor:", placeholder="Contoh: D 000974")
 
-    # LOGIKA PENCARIAN
     if search_query:
         query_clean = " ".join(search_query.split()).lower()
         found_any_global = False
@@ -126,15 +128,15 @@ if db_sheets:
                             else:
                                 if query_clean == teks_db:
                                     max_score_in_row = 100
-                                    found_cols.append(f"{col_name} (100%)")
+                                    found_cols.append(f"{col_name} (MATCH)")
                     
                     return max_score_in_row, ", ".join(found_cols)
 
                 res_match = df.apply(lambda r: pd.Series(check_row_match(r)), axis=1)
                 
-                # Masukkan kolom SKOR & STATUS di depan hasil
+                # Masukkan kolom SKOR & STATUS di paling kiri
                 df.insert(0, 'SKOR_KEMIRIPAN', res_match[0])
-                df.insert(1, 'STATUS_MATCH', res_match[1])
+                df.insert(1, 'DITEMUKAN_DI_KOLOM', res_match[1])
                 
                 limit = threshold if metode == "Nama" else 100
                 matches = df[df['SKOR_KEMIRIPAN'] >= limit].copy()
@@ -147,7 +149,6 @@ if db_sheets:
                     with st.expander(f"🚩 HASIL {sheet_name}: Ditemukan {len(matches)} data", expanded=True):
                         st.dataframe(matches, use_container_width=True, hide_index=True)
 
-        # FITUR DOWNLOAD
         if found_any_global:
             st.divider()
             final_report = pd.concat(all_results_for_download, ignore_index=True)
@@ -162,7 +163,7 @@ if db_sheets:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
             
-        if not found_any_global:
-            st.warning(f"HASIL NIHIL: '{search_query}' tidak ditemukan.")
+        if not found_any_global and search_query:
+            st.warning(f"HASIL NIHIL: '{search_query}' tidak ditemukan di database.")
 else:
-    st.error(f"Database 'database.xlsx' tidak ditemukan.")
+    st.error(f"File '{NAMA_FILE_DATABASE}' tidak ditemukan.")
