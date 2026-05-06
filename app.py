@@ -19,7 +19,7 @@ LINK_SHEETS = {
     "SIPENDAR": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTwj6BDBGvo9yWRYMkPGNxPi9KtLrbU8qT8zA5VdiogRlp1JoxBDADyh3xF2gWROuPS0pBujoYiKUn-/pub?gid=288835560&single=true&output=csv"
 }
 
-# 3. CSS CUSTOM (DESAIN TETAP OKE)
+# 3. CSS CUSTOM (DESAIN TETAP PRESISI)
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { display: none; }
@@ -148,37 +148,45 @@ with tabs[0]:
     st.markdown('</div>', unsafe_allow_html=True)
     
     if query:
-        log_activity(st.session_state.email_user, f"Cari {metode}: {query}")
-        q_clean = " ".join(query.split()).lower()
-        found, results_all = False, []
-        for sn, df_data in db.items():
-            # --- LOGIKA ASLI DIKEMBALIKAN ---
-            def find_match(row):
-                max_s, m_info = 0, []
-                # Pencarian berdasarkan kolom (NIK/Paspor atau Nama)
-                cols = df_data.columns if metode in ["NIK", "Paspor"] else [c for c in df_data.columns if 'nama' in c.lower()]
-                for c in cols:
-                    s = fuzz.token_sort_ratio(q_clean, str(row[c]).lower())
-                    if s >= threshold:
-                        m_info.append(f"{c} ({s}%)")
-                        if s > max_s: max_s = s
-                return pd.Series([max_s, "Match: " + ", ".join(m_info)]) if max_s > 0 else pd.Series([0, "-"])
-            
-            df_temp = df_data.copy()
-            df_temp[['_s', 'KET STATUS']] = df_temp.apply(find_match, axis=1)
-            match = df_temp[df_temp['_s'] > 0].copy()
-            
-            if not match.empty:
-                found = True
-                res = match.sort_values('_s', ascending=False).drop(columns=['_s'])
-                results_all.append(res)
-                with st.expander(f"🚩 Database: {sn}", expanded=True): 
-                    st.dataframe(res, hide_index=True, use_container_width=True)
+        # LOGIKA VALIDASI DIGIT
+        q_strip = query.replace(" ", "").replace(".", "").replace("-", "")
         
-        if found and is_super_admin:
-            buf = io.BytesIO()
-            with pd.ExcelWriter(buf) as w: pd.concat(results_all).to_excel(w, index=False)
-            st.download_button("📥 Download Hasil Screening (Excel)", buf.getvalue(), "Hasil.xlsx", use_container_width=True)
+        if metode == "NIK" and len(q_strip) < 16:
+            st.error(f"❌ NIK harus minimal 16 digit! (Input Anda: {len(q_strip)} digit)")
+        elif metode == "Paspor" and len(q_strip) < 7:
+            st.error(f"❌ Nomor Paspor harus minimal 7 karakter!")
+        else:
+            log_activity(st.session_state.email_user, f"Cari {metode}: {query}")
+            q_clean = " ".join(query.split()).lower()
+            found, results_all = False, []
+            for sn, df_data in db.items():
+                def find_match(row):
+                    max_s, m_info = 0, []
+                    cols = df_data.columns if metode in ["NIK", "Paspor"] else [c for c in df_data.columns if 'nama' in c.lower()]
+                    for c in cols:
+                        s = fuzz.token_sort_ratio(q_clean, str(row[c]).lower())
+                        if s >= threshold:
+                            m_info.append(f"{c} ({s}%)")
+                            if s > max_s: max_s = s
+                    return pd.Series([max_s, "Match: " + ", ".join(m_info)]) if max_s > 0 else pd.Series([0, "-"])
+                
+                df_temp = df_data.copy()
+                df_temp[['_s', 'KET STATUS']] = df_temp.apply(find_match, axis=1)
+                match = df_temp[df_temp['_s'] > 0].copy()
+                
+                if not match.empty:
+                    found = True
+                    res = match.sort_values('_s', ascending=False).drop(columns=['_s'])
+                    results_all.append(res)
+                    with st.expander(f"🚩 Database: {sn}", expanded=True): 
+                        st.dataframe(res, hide_index=True, use_container_width=True)
+            
+            if found and is_super_admin:
+                buf = io.BytesIO()
+                with pd.ExcelWriter(buf) as w: pd.concat(results_all).to_excel(w, index=False)
+                st.download_button("📥 Download Hasil Screening (Excel)", buf.getvalue(), "Hasil.xlsx", use_container_width=True)
+            elif not found:
+                st.warning("Data tidak ditemukan di database manapun.")
 
 if is_super_admin:
     with tabs[1]:
