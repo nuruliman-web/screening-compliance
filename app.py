@@ -4,23 +4,12 @@ from thefuzz import fuzz
 import os
 import io
 
-# 1. KONFIGURASI HALAMAN
-st.set_page_config(page_title="Screening System", layout="wide", initial_sidebar_state="expanded")
-
-# CSS Khusus: Mengecilkan font email di sidebar agar tidak turun ke bawah
-st.markdown("""
-    <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {background-color: transparent;}
-    [data-testid="stSidebarUserContent"] {display: none;}
-    /* Font email sidebar */
-    .email-text {
-        font-size: 14px;
-        white-space: nowrap;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+# 1. KONFIGURASI HALAMAN (Paksa sidebar terbuka agar tidak 'hilang')
+st.set_page_config(
+    page_title="Screening System", 
+    layout="wide", 
+    initial_sidebar_state="expanded"
+)
 
 # 2. LOGIN SYSTEM
 ALLOWED_EMAILS = ["imanmuhamad9@gmail.com", "admin@perusahaan.com"]
@@ -40,24 +29,21 @@ if not st.session_state.auth:
             st.error("Email tidak terdaftar!")
     st.stop()
 
-# 3. SIDEBAR (EMAIL 1 BARIS & LOGOUT SEJAJAR)
-with st.sidebar:
-    # Menggunakan rasio kolom 4:1 agar area email jauh lebih luas
-    col_a, col_b = st.columns([4, 1.2])
-    with col_a:
-        # Menggunakan HTML agar font bisa diatur ukurannya
-        st.markdown(f'<p class="email-text">👤 <b>{st.session_state.email_user}</b></p>', unsafe_allow_html=True)
-    with col_b:
-        if st.button("Out"):
-            st.session_state.auth = False
-            st.rerun()
-    
-    st.divider()
-    
-    # Pengaturan (Slider)
-    st.write("🎯 **Akurasi Nama (%)**")
-    threshold = st.slider("", 50, 100, 85, label_visibility="collapsed")
-    st.caption("Atur sensitivitas pencarian.")
+# 3. SIDEBAR (STRUKTUR PALING STABIL)
+# Kita susun vertikal saja agar tidak ada elemen yang tertutup kolom
+st.sidebar.write(f"👤 **User:**")
+st.sidebar.code(st.session_state.email_user, language=None) # Pakai box code agar email 1 baris & jelas
+
+st.sidebar.divider()
+
+st.sidebar.write("🎯 **Akurasi Nama (%)**")
+threshold = st.sidebar.slider("Geser untuk atur sensitivitas", 50, 100, 85, label_visibility="collapsed")
+
+st.sidebar.divider()
+
+if st.sidebar.button("🚪 Log Out", use_container_width=True):
+    st.session_state.auth = False
+    st.rerun()
 
 # 4. APLIKASI UTAMA
 st.title("🔍 Screening APU, PPT, dan PPPSPM")
@@ -78,8 +64,8 @@ def load_db(path):
 db = load_db("database.xlsx")
 
 if db:
-    metode = st.radio("Metode Pencarian:", ["Nama", "NIK / Paspor"], horizontal=True)
-    query = st.text_input("Masukkan Data Nasabah:", placeholder="Cari...")
+    metode = st.radio("Pilih Metode Pencarian:", ["Nama", "NIK / Paspor"], horizontal=True)
+    query = st.text_input("Masukkan Data Nasabah:", placeholder="Ketik nama atau NIK di sini...")
 
     if query:
         q_clean = " ".join(query.split()).lower()
@@ -120,8 +106,8 @@ if db:
             final_df = pd.concat(results)
             buf = io.BytesIO()
             with pd.ExcelWriter(buf) as w: final_df.to_excel(w, index=False)
-            st.download_button("📥 Download Hasil Excel", buf.getvalue(), "Hasil.xlsx", use_container_width=True)
+            st.download_button("📥 Download Hasil Excel", buf.getvalue(), "Hasil_Screening.xlsx", use_container_width=True)
         elif query:
-            st.warning("Data tidak ditemukan.")
+            st.warning("Data tidak ditemukan di database.")
 else:
-    st.error("Pastikan file 'database.xlsx' ada.")
+    st.error("File 'database.xlsx' tidak ditemukan di sistem.")
