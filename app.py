@@ -51,6 +51,14 @@ st.markdown("""
         border: 1px solid #dee2e6; 
         margin-top: 10px;
     }
+
+    /* Tambahan sedikit agar Tab lebih rapi */
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
+    .stTabs [data-baseweb="tab"] { 
+        background-color: #f1f3f6; 
+        border-radius: 5px 5px 0 0; 
+        padding: 8px 16px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -61,10 +69,15 @@ if "auth" not in st.session_state: st.session_state.auth = False
 if "f_key" not in st.session_state: st.session_state.f_key = str(uuid.uuid4())
 if "show_pw_form" not in st.session_state: st.session_state.show_pw_form = False
 
+# Load Whitelist (Sekarang dalam bentuk DataFrame)
+df_w = load_whitelist()
+
 if not st.session_state.auth:
     st.title("🔐 Login Screening System")
     email_in = st.text_input("Email:", key=f"e_{st.session_state.f_key}").lower().strip()
-    if email_in in load_whitelist():
+    
+    # Cek apakah email ada di kolom 'Email' pada DataFrame whitelist
+    if email_in in df_w['Email'].values:
         db_u = load_user_db()
         user_row = db_u[db_u['Email'] == email_in]
         if user_row.empty:
@@ -79,18 +92,24 @@ if not st.session_state.auth:
                 if hash_pass(pwd) == user_row.iloc[0]['PasswordHash']:
                     st.session_state.auth, st.session_state.user = True, email_in; log_activity(email_in, "Login"); st.rerun()
                 else: st.error("Salah!")
+    elif email_in != "":
+        st.error("Email tidak terdaftar dalam whitelist.")
     st.stop()
 
 # ==========================================
 # 3. HEADER (USER INFO & JUDUL)
 # ==========================================
-is_admin = st.session_state.user == "imanmuhamad9@gmail.com"
+# Cek Role User dari Whitelist
+user_info = df_w[df_w['Email'] == st.session_state.user]
+user_role = user_info.iloc[0]['Role'] if not user_info.empty else "User"
+is_admin = (user_role == "Admin")
+
 col_user, col_title = st.columns([2.5, 3.5])
 
 with col_user:
     # Baris 1: Nama & Logout
     c_u1, c_u2 = st.columns([2, 1])
-    c_u1.markdown(f'<div class="user-box">👤 {st.session_state.user}</div>', unsafe_allow_html=True)
+    c_u1.markdown(f'<div class="user-box">👤 {st.session_state.user} ({user_role})</div>', unsafe_allow_html=True)
     if c_u2.button("🚪 Logout", use_container_width=True):
         st.session_state.auth = False; st.rerun()
     
