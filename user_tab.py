@@ -79,11 +79,19 @@ def run_user_management():
             # Kolom Kontrol
             with col_act:
                 a1, a2 = st.columns([1, 1.3])
-                if is_registered:
-                    if a1.button("🔄 Reset", key=f"res_{email}", use_container_width=True):
-                        new_db = user_db[user_db['Email'] != email]
-                        new_db.to_csv(USER_DB_FILE, index=False)
-                        st.rerun()
+               if is_registered:
+    if a1.button("🔄 Reset", key=f"res_{email}", use_container_width=True):
+        # 1. Hapus Password lama (biar dia bikin baru)
+        new_db = user_db[user_db['Email'] != email]
+        new_db.to_csv(USER_DB_FILE, index=False)
+        
+        # 2. Set Status jadi Active lagi di whitelist
+        df_whitelist = load_whitelist()
+        df_whitelist.loc[df_whitelist['Email'] == email, 'Status'] = 'Active'
+        save_whitelist(df_whitelist)
+        
+        st.success(f"Akses {email} telah dipulihkan.")
+        st.rerun()
                 
                 if email != st.session_state.user:
                     if a2.button("❌ Hapus Akun", key=f"del_{email}", use_container_width=True):
