@@ -13,22 +13,39 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. CSS SAKTI: HAPUS MENU KANAN, TAPI SIDEBAR KIRI TETAP ADA
+# 2. FUNGSI LOGGING
+def log_activity(email, action):
+    log_file = "log_aktivitas.csv"
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    new_data = pd.DataFrame([[now, email, action]], columns=["Waktu", "User", "Aktivitas"])
+    
+    if not os.path.isfile(log_file):
+        new_data.to_csv(log_file, index=False)
+    else:
+        new_data.to_csv(log_file, mode='a', header=False, index=False)
+
+# 3. SETTING TIMEOUT (10 Menit)
+TIMEOUT_SECONDS = 600 
+
+if "last_activity" not in st.session_state:
+    st.session_state.last_activity = time.time()
+
+if st.session_state.get("auth"):
+    current_time = time.time()
+    elapsed_time = current_time - st.session_state.last_activity
+    
+    if elapsed_time > TIMEOUT_SECONDS:
+        log_activity(st.session_state.email_user, "Auto-Logout (Timeout)")
+        st.session_state.auth = False
+        st.rerun()
+
+st.session_state.last_activity = time.time()
+
+# 4. CSS CUSTOM (Warna Hitam, Jarak Rapat, Anti-Klik)
 st.markdown("""
     <style>
-    /* 1. Sembunyikan tombol menu tiga titik di pojok kanan atas */
     #MainMenu {visibility: hidden;}
-    
-    /* 2. Sembunyikan header Streamlit secara keseluruhan agar lebih bersih */
-    header {visibility: hidden;}
-    
-    /* 3. Kembalikan fungsionalitas tombol sidebar (panah) agar tetap muncul walau header di-hide */
-    .st-emotion-cache-zq5wmm {
-        visibility: visible !important;
-        top: 10px !important;
-    }
-    
-    /* 4. Anti-Klik & Warna Hitam untuk Email di Sidebar */
+    footer {visibility: hidden;}
     .stSidebar a {
         color: black !important;
         text-decoration: none !important;
@@ -41,39 +58,10 @@ st.markdown("""
         pointer-events: none !important;
         cursor: default !important;
     }
-    
-    /* 5. Hilangkan footer "Made with Streamlit" */
-    footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
-# --- LANJUTAN KODE (Sama seperti sebelumnya) ---
-
-# 3. FUNGSI LOGGING
-def log_activity(email, action):
-    log_file = "log_aktivitas.csv"
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    new_data = pd.DataFrame([[now, email, action]], columns=["Waktu", "User", "Aktivitas"])
-    if not os.path.isfile(log_file):
-        new_data.to_csv(log_file, index=False)
-    else:
-        new_data.to_csv(log_file, mode='a', header=False, index=False)
-
-# 4. SETTING TIMEOUT (10 Menit)
-TIMEOUT_SECONDS = 600 
-if "last_activity" not in st.session_state:
-    st.session_state.last_activity = time.time()
-
-if st.session_state.get("auth"):
-    current_time = time.time()
-    if (current_time - st.session_state.last_activity) > TIMEOUT_SECONDS:
-        log_activity(st.session_state.email_user, "Auto-Logout (Timeout)")
-        st.session_state.auth = False
-        st.rerun()
-
-st.session_state.last_activity = time.time()
-
-# 5. LOGIN SYSTEM
+# 5. LOGIN SYSTEM & PERMISSIONS
 ALLOWED_EMAILS = ["imanmuhamad9@gmail.com", "admin@perusahaan.com", "xxx@gmail.com"]
 
 if "auth" not in st.session_state:
@@ -93,17 +81,25 @@ if not st.session_state.auth:
             st.error("Email tidak terdaftar!")
     st.stop()
 
-# Role Logic
+# Definisi Role
 is_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
 can_download = st.session_state.email_user != "xxx@gmail.com"
 
 # 6. SIDEBAR
 with st.sidebar:
-    st.markdown(f'<div class="user-box"><b>👤User Login:</b><br>{st.session_state.email_user}</div>', unsafe_allow_html=True)
+    st.markdown(f'''
+        <div class="user-box">
+            <b>👤User Login:</b><br>
+            {st.session_state.email_user}
+        </div>
+    ''', unsafe_allow_html=True)
+    
     st.divider()
     st.write("🎯 **Akurasi Nama (%)**")
     threshold = st.slider("Akurasi", 50, 100, 85, label_visibility="collapsed")
+    
     st.markdown('<div style="height: 60vh;"></div>', unsafe_allow_html=True)
+    
     st.divider()
     if st.button("🚪 Keluar / Logout", use_container_width=True):
         log_activity(st.session_state.email_user, "Manual Logout")
@@ -117,8 +113,10 @@ else:
     tab_screening, = st.tabs(["🔍 Screening Nasabah"])
     tab_log = None
 
+# --- TAB 1: SCREENING ---
 with tab_screening:
     st.title("🔍 Screening APU, PPT, dan PPPSPM")
+    
     @st.cache_data
     def load_db(path):
         if os.path.exists(path):
@@ -133,14 +131,17 @@ with tab_screening:
         return None
 
     db = load_db("database.xlsx")
+
     if db:
         metode = st.radio("Pilih Metode:", ["Nama", "NIK / Paspor"], horizontal=True)
         query = st.text_input("Cari Data:", placeholder="Masukkan Nama atau NIK...")
+
         if query:
             q_clean = " ".join(query.split()).lower()
             found = False
             results = []
             target_sheets = ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']
+            
             for sn in target_sheets:
                 if sn in db:
                     df = db[sn].copy()
@@ -156,26 +157,31 @@ with tab_screening:
                                 else:
                                     if q_clean == val: top = 100
                         return top
+
                     df.insert(0, 'SKOR', df.apply(score_row, axis=1))
                     limit = threshold if metode == "Nama" else 100
                     match = df[df['SKOR'] >= limit].copy()
+                    
                     if not match.empty:
                         found = True
                         match = match.sort_values('SKOR', ascending=False)
                         results.append(match)
                         with st.expander(f"🚩 Database: {sn}", expanded=True):
                             st.dataframe(match, hide_index=True, use_container_width=True)
-            if found and can_download:
-                st.divider()
-                final_df = pd.concat(results)
-                buf = io.BytesIO()
-                with pd.ExcelWriter(buf) as w: final_df.to_excel(w, index=False)
-                st.download_button("📥 Download Hasil Screening (Excel)", buf.getvalue(), "Hasil.xlsx", use_container_width=True)
-            elif query and not found:
+
+            if found:
+                if can_download:
+                    st.divider()
+                    final_df = pd.concat(results)
+                    buf = io.BytesIO()
+                    with pd.ExcelWriter(buf) as w: final_df.to_excel(w, index=False)
+                    st.download_button("📥 Download Hasil Screening (Excel)", buf.getvalue(), "Hasil.xlsx", use_container_width=True)
+            elif query:
                 st.warning("Data tidak ditemukan.")
     else:
         st.error("File 'database.xlsx' tidak ditemukan.")
 
+# --- TAB 2: LOG AKTIVITAS (Hanya untuk Admin Iman) ---
 if tab_log and is_admin:
     with tab_log:
         st.title("Audit Log Aktivitas")
@@ -183,6 +189,11 @@ if tab_log and is_admin:
             df_log = pd.read_csv("log_aktivitas.csv").iloc[::-1]
             csv_buffer = io.StringIO()
             df_log.to_csv(csv_buffer, index=False)
-            st.download_button("📥 Download Log (.csv)", csv_buffer.getvalue(), "Log.csv", mime="text/csv")
+            st.download_button(
+                label="📥 Download Seluruh Log Aktivitas (.csv)",
+                data=csv_buffer.getvalue(),
+                file_name=f"Log_Aktivitas.csv",
+                mime="text/csv"
+            )
             st.divider()
             st.dataframe(df_log, use_container_width=True, hide_index=True)
