@@ -62,7 +62,6 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # 5. LOGIN SYSTEM & PERMISSIONS
-# Tambahkan xxx@gmail.com ke daftar
 ALLOWED_EMAILS = ["imanmuhamad9@gmail.com", "admin@perusahaan.com", "xxx@gmail.com"]
 
 if "auth" not in st.session_state:
@@ -116,7 +115,7 @@ else:
 
 # --- TAB 1: SCREENING ---
 with tab_screening:
-    st.title("Screening APU, PPT, dan PPPSPM")
+    st.title("🔍 Screening APU, PPT, dan PPPSPM")
     
     @st.cache_data
     def load_db(path):
@@ -171,15 +170,12 @@ with tab_screening:
                             st.dataframe(match, hide_index=True, use_container_width=True)
 
             if found:
-                # CEK IZIN DOWNLOAD
                 if can_download:
                     st.divider()
                     final_df = pd.concat(results)
                     buf = io.BytesIO()
                     with pd.ExcelWriter(buf) as w: final_df.to_excel(w, index=False)
                     st.download_button("📥 Download Hasil Screening (Excel)", buf.getvalue(), "Hasil.xlsx", use_container_width=True)
-                else:
-                    st.info("💡 Mode Testing: Anda hanya dapat mencari data, fitur download dinonaktifkan.")
             elif query:
                 st.warning("Data tidak ditemukan.")
     else:
@@ -191,8 +187,6 @@ if tab_log and is_admin:
         st.title("Audit Log Aktivitas")
         if os.path.exists("log_aktivitas.csv"):
             df_log = pd.read_csv("log_aktivitas.csv").iloc[::-1]
-            
-            # Tombol Download Log (Pasti bisa karena ini Tab khusus Admin)
             csv_buffer = io.StringIO()
             df_log.to_csv(csv_buffer, index=False)
             st.download_button(
@@ -203,5 +197,3 @@ if tab_log and is_admin:
             )
             st.divider()
             st.dataframe(df_log, use_container_width=True, hide_index=True)
-        else:
-            st.info("Belum ada log aktivitas.")
