@@ -22,11 +22,7 @@ st.markdown(hide_st_style, unsafe_allow_html=True)
 # 2. SISTEM LOGIN EMAIL
 # ---------------------------------------------------------
 # DAFTARKAN EMAIL DI SINI (Ganti dengan email tim kamu)
-ALLOWED_EMAILS = [
-    "imanmuhamad9@gmail.com",
-    "user1@perusahaan.com",
-    "agung@gmail.com"
-]
+ALLOWED_EMAILS = ["imanmuhamad9@gmail.com", "user1@perusahaan.com", "agung@gmail.com"]
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
