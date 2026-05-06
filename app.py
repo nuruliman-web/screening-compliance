@@ -19,7 +19,7 @@ LINK_SHEETS = {
     "SIPENDAR": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTwj6BDBGvo9yWRYMkPGNxPi9KtLrbU8qT8zA5VdiogRlp1JoxBDADyh3xF2gWROuPS0pBujoYiKUn-/pub?gid=288835560&single=true&output=csv"
 }
 
-# 3. CSS CUSTOM (STRICT ALIGNMENT)
+# 3. CSS CUSTOM (FIX DESIGN PRESISI)
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { display: none; }
@@ -38,6 +38,7 @@ st.markdown("""
         font-size: 26px; 
         font-weight: 800; 
         text-align: center;
+        margin-top: 10px;
     }
     .search-box {
         background-color: #f0f2f6; 
@@ -53,7 +54,7 @@ st.markdown("""
         border: 1px solid #e6e9ef; 
         text-align: center;
     }
-    /* Memastikan button sejajar dan konsisten */
+    /* Memastikan semua button dalam satu baris punya tinggi yang sama */
     .stButton > button {
         width: 100%;
         border-radius: 6px;
@@ -125,28 +126,28 @@ if (time.time() - st.session_state.last_activity) > (5 * 60):
     st.session_state.auth = False; st.rerun()
 st.session_state.last_activity = time.time()
 
-# 7. HEADER (FIX GAMBAR 1: BUTTON SAMPINGAN)
-head_col1, head_col2 = st.columns([1.5, 3.5])
+# 7. HEADER (FIX DESAIN BERDASARKAN GAMBAR 1)
+h_col1, h_col2 = st.columns([1.8, 3.2])
 
-with head_col1:
+with h_col1:
     st.markdown(f'<div class="user-box">👤 <b>{st.session_state.email_user}</b></div>', unsafe_allow_html=True)
-    # Button samping-sampingan rapat
-    btn_area1, btn_area2, _ = st.columns([1, 0.8, 1])
-    if btn_area1.button("🔑 Ganti PW"):
+    # Membuat kolom button berdampingan rapat
+    b_col1, b_col2, b_col3 = st.columns([1, 1, 1])
+    if b_col1.button("🔑 Ganti Password"):
         st.session_state.show_pw_form = not st.session_state.show_pw_form
-    if btn_area2.button("🚪 Out"):
+    if b_col2.button("🚪 Logout"):
         st.session_state.auth = False; st.rerun()
 
-with head_col2:
+with h_col2:
     st.markdown('<div class="header-title">SCREENING DATA APU, PPT, DAN PPPSPM</div>', unsafe_allow_html=True)
 
-# FIX GAMBAR 1: SIMPAN PERUBAHAN SEJAJAR
+# FORM GANTI PASSWORD (FIX SEJAJAR)
 if st.session_state.show_pw_form:
     st.write("---")
-    # vertical_alignment="end" memastikan button sejajar dengan kotak input
+    # Penempatan kolom untuk form yang sejajar
     f_col1, f_col2, f_col3 = st.columns([2, 2, 1.5], vertical_alignment="end")
-    old_p = f_col1.text_input("Password Lama", type="password")
-    new_p = f_col2.text_input("Password Baru", type="password")
+    old_p = f_col1.text_input("Password Lama", type="password", key="old_pwd")
+    new_p = f_col2.text_input("Password Baru", type="password", key="new_pwd")
     if f_col3.button("💾 Simpan Perubahan", use_container_width=True):
         df_u = load_user_db()
         idx = df_u[df_u['Email'] == st.session_state.email_user].index
@@ -155,6 +156,7 @@ if st.session_state.show_pw_form:
             df_u.to_csv(USER_DB_FILE, index=False)
             st.success("Tersimpan!"); time.sleep(1); st.session_state.show_pw_form = False; st.rerun()
         else: st.error("Gagal verifikasi!")
+
 st.divider()
 
 # 8. LOAD DATA
@@ -218,16 +220,18 @@ if is_super_admin:
         cols = st.columns(len(db_stats) + 1)
         for i, (name, count) in enumerate(db_stats.items()):
             cols[i].markdown(f'<div class="stat-card"><small>{name}</small><br><b>{count:,}</b></div>', unsafe_allow_html=True)
+        
         with cols[-1]:
             st.markdown(f'<div style="background-color: #0068c9; color: white; padding: 15px; border-radius: 10px; text-align: center;"><small>TOTAL DATA</small><br><b>{total_all:,}</b></div>', unsafe_allow_html=True)
             st.write("")
             if os.path.exists("log_aktivitas.csv"):
-                # FIX GAMBAR 2: BUTTON IDENTIK (UKURAN & LEBAR)
+                # FIX GAMBAR 2: BUTTON IDENTIK & SEJAJAR
                 log_df_raw = pd.read_csv("log_aktivitas.csv")
                 buf_log = io.BytesIO()
                 with pd.ExcelWriter(buf_log) as w: log_df_raw.to_excel(w, index=False)
+                
                 st.download_button("📥 Download Seluruh Log", buf_log.getvalue(), "Log_Aktivitas.xlsx", use_container_width=True)
-                st.write("") # Memberi sedikit jarak antar button agar tidak menempel
+                st.write("") 
                 if st.button("🔥 Reset / Hapus Semua Log", use_container_width=True): 
                     os.remove("log_aktivitas.csv"); st.rerun()
         st.divider()
