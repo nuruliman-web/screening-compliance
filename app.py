@@ -21,8 +21,8 @@ st.markdown(hide_st_style, unsafe_allow_html=True)
 # ---------------------------------------------------------
 # 2. SISTEM LOGIN EMAIL
 # ---------------------------------------------------------
-# DAFTARKAN EMAIL DI SINI (Ganti dengan email tim kamu)
-ALLOWED_EMAILS = ["imanmuhamad9@gmail.com", "user1@perusahaan.com", "agung@gmail.com"]
+# Daftar email yang diizinkan (Input dalam satu baris saja supaya tidak error spasi)
+ALLOWED_EMAILS = ["imanmuhamad9@gmail.com", "admin@perusahaan.com"]
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -36,10 +36,10 @@ if not st.session_state.authenticated:
     if st.button("Masuk"):
         if email_input in ALLOWED_EMAILS:
             st.session_state.authenticated = True
-            st.rerun() # Refresh aplikasi setelah login berhasil
+            st.rerun()
         else:
             st.error("❌ Email tidak terdaftar. Hubungi Admin.")
-    st.stop() # Menghentikan kode di bawahnya agar tidak jalan sebelum login
+    st.stop()
 
 # ---------------------------------------------------------
 # 3. APLIKASI UTAMA (Hanya jalan jika login berhasil)
@@ -51,7 +51,7 @@ if st.sidebar.button("Log Out"):
     st.rerun()
 
 st.title("🔍 Screening APU, PPT, dan PPPSPM")
-st.write(f"Selamat datang! Anda login sebagai: **{email_input}**")
+st.info(f"Login Berhasil: {st.session_state.get('user_email', 'imanmuhamad9@gmail.com')}")
 
 # FUNGSI LOAD DATA
 @st.cache_data
@@ -80,6 +80,7 @@ if db_sheets:
         search_query = st.text_input("Masukkan Nama Calon Nasabah:", placeholder="Contoh: AGUNG GUNARDI")
         threshold = st.sidebar.slider("Ambang Kemiripan Minimal (%)", 50, 100, 85)
     else:
+        # NIK bebas bisa huruf/angka
         search_query = st.text_input("Masukkan NIK atau Nomor Paspor Calon Nasabah:", placeholder="Contoh: D 000974")
 
     # LOGIKA PENCARIAN
