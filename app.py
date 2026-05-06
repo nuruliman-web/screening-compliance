@@ -12,64 +12,76 @@ import user_tab as admin_user
 # ==========================================
 st.set_page_config(page_title="Screening System", layout="wide", initial_sidebar_state="collapsed")
 
-# --- WAJIB: Inisialisasi session state di paling atas ---
+# --- WAJIB: Inisialisasi semua session state di paling atas ---
 if "auth" not in st.session_state:
     st.session_state.auth = False
 if "last_activity" not in st.session_state:
     st.session_state.last_activity = time.time()
+if "f_key" not in st.session_state:
+    st.session_state.f_key = str(uuid.uuid4()) # INI PENTING BIAR GAK ERROR
+if "show_pw_form" not in st.session_state:
+    st.session_state.show_pw_form = False
+if "login_attempts" not in st.session_state:
+    st.session_state.login_attempts = 0
 
-# KONFIGURASI WAKTU (3 MENIT = 180 DETIK)
-TIMEOUT_SECONDS = 180 
+# ... (Logika Timeout & CSS tetap sama)
 
-# --- LOGIKA TIMEOUT ---
-if st.session_state.auth:
-    current_time = time.time()
-    elapsed_time = current_time - st.session_state.last_activity
+# ==========================================
+# 2. LOGIN SYSTEM
+# ==========================================
+df_w = load_whitelist()
+
+if not st.session_state.auth:
+    st.title("🔐 Login Screening System")
     
-    if elapsed_time > TIMEOUT_SECONDS:
-        st.session_state.auth = False
-        st.session_state.user = None # Bersihkan data user
-        st.warning("Sesi Anda telah berakhir karena tidak ada aktivitas selama 3 menit.")
-        time.sleep(2)
-        st.rerun()
-    else:
-        # Update waktu aktivitas terakhir hanya jika user sudah login
-        st.session_state.last_activity = current_time
-
-# --- CSS STYLING ---
-st.markdown("""
-    <style>
-    [data-testid="stSidebar"] { display: none; }
-    header[data-testid="stHeader"] { visibility: hidden; height: 0; }
+    # Sekarang key f_key sudah aman karena sudah dibuat di atas
+    email_in = st.text_input("Email:", key=f"e_{st.session_state.f_key}").lower().strip()
     
-    .user-box { 
-        background-color: #f8f9fa; 
-        padding: 8px 15px; 
-        border-radius: 8px; 
-        border: 1px solid #e6e9ef;
-        min-height: 40px;
-        font-size: 14px;
-        color: #31333F;
-        font-weight: 600;
-        display: flex;
-        align-items: center;
-    }
-    
-    div.stButton > button { 
-        border-radius: 8px !important; 
-        height: 40px !important;
-        font-size: 14px !important;
-    }
+    if email_in != "":
+        user_match = df_w[df_w['Email'] == email_in]
+        
+        if not user_match.empty:
+            user_info = user_match.iloc[0]
+            
+            # 1. CEK STATUS BLOKIR
+            if user_info.get('Status') == 'Blocked':
+                st.error(f"❌ Akun {email_in} TERBLOKIR!")
+                st.info("Anda salah password 3x. Hubungi Admin untuk buka blokir.")
+                st.stop()
 
-    .header-title { 
-        color: #1f1f1f; 
-        font-size: 22px; 
-        font-weight: 800; 
-        text-align: center; 
-        line-height: 1.2;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+            # 2. PROSES LOGIN
+            db_u = load_user_db()
+            user_row = db_u[db_u['Email'] == email_in]
+            
+            if user_row.empty:
+                p1 = st.text_input("Buat Password Baru:", type="password", key=f"new_p_{st.session_state.f_key}")
+                if st.button("Daftar"):
+                    if p1:
+                        new_u = pd.DataFrame([[email_in, hash_pass(p1)]], columns=["Email", "PasswordHash"])
+                        pd.concat([db_u, new_u]).to_csv(USER_DB_FILE, index=False)
+                        st.success("Berhasil! Silakan Login."); time.sleep(1); st.rerun()
+                    else:
+                        st.warning("Password tidak boleh kosong.")
+            else:
+                pwd = st.text_input("Password:", type="password", key=f"p_{st.session_state.f_key}")
+                if st.button("Masuk"):
+                    if hash_pass(pwd) == user_row.iloc[0]['PasswordHash']:
+                        st.session_state.login_attempts = 0
+                        st.session_state.auth, st.session_state.user = True, email_in
+                        log_activity(email_in, "Login")
+                        st.rerun()
+                    else:
+                        st.session_state.login_attempts += 1
+                        if st.session_state.login_attempts >= 3:
+                            df_w.loc[df_w['Email'] == email_in, 'Status'] = 'Blocked'
+                            save_whitelist(df_w)
+                            log_activity(email_in, "AKUN TERBLOKIR")
+                            st.rerun()
+                        else:
+                            st.error(f"Sandi Salah! Sisa percobaan: {3 - st.session_state.login_attempts}")
+        else:
+            st.error("Email tidak terdaftar di Whitelist!")
+    st.stop()
 
 # ==========================================
 # 2. LOGIN SYSTEM (FIX INDEX ERROR)
@@ -132,13 +144,9 @@ if not st.session_state.auth:
 # ==========================================
 # 3. IDENTIFIKASI ROLE (UNTUK MENU)
 # ==========================================
-# Cari role user yang sedang login dari dataframe whitelist
-current_user_data = df_w[df_w['Email'] == st.session_state.user]
-if not current_user_data.empty:
-    user_role = current_user_data.iloc[0]['Role']
-else:
-    user_role = "User" # Default jika tidak ditemukan
-
+# Cari role user yang sedang login
+user_info = df_w[df_w['Email'] == st.session_state.user]
+user_role = user_info.iloc[0]['Role'] if not user_info.empty else "User"
 is_admin = (user_role == "Admin")
 # ==========================================
 # 3. HEADER (USER INFO & JUDUL)
