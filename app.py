@@ -8,12 +8,12 @@ from datetime import datetime
 
 # 1. KONFIGURASI HALAMAN
 st.set_page_config(
-    page_title="Screening System Pro", 
+    page_title="Screening System", 
     layout="wide", 
     initial_sidebar_state="collapsed"
 )
 
-# 2. CSS CUSTOM: HAPUS HEADER, WARNAI TABEL, & UKURAN ELEMEN
+# 2. CSS CUSTOM
 st.markdown("""
     <style>
     header[data-testid="stHeader"] { visibility: hidden; height: 0%; }
@@ -31,27 +31,17 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. FUNGSI LOGGING (Dengan Auto-Reset jika file error)
-def log_activity(email, action, detail="-"):
+# 3. FUNGSI LOGGING (KEMBALI KE AWAL - SIMPLE)
+def log_activity(email, action):
     log_file = "log_aktivitas.csv"
-    
-    # Logika Auto-Fix: Hapus file jika format pembatas (separator) salah
-    if os.path.exists(log_file):
-        try:
-            pd.read_csv(log_file, sep=';', nrows=1)
-        except:
-            os.remove(log_file)
-            
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    detail_clean = str(detail).replace(";", "|") 
-    new_data = pd.DataFrame([[now, email, action, detail_clean]], columns=["Waktu", "User", "Aktivitas", "Detail"])
-    
+    new_data = pd.DataFrame([[now, email, action]], columns=["Waktu", "User", "Aktivitas"])
     if not os.path.isfile(log_file):
-        new_data.to_csv(log_file, index=False, sep=';')
+        new_data.to_csv(log_file, index=False)
     else:
-        new_data.to_csv(log_file, mode='a', header=False, index=False, sep=';')
+        new_data.to_csv(log_file, mode='a', header=False, index=False)
 
-# 4. LOGIN & TIMEOUT SYSTEM
+# 4. LOGIN SYSTEM
 if "auth" not in st.session_state:
     st.session_state.auth = False
 
@@ -62,23 +52,23 @@ if not st.session_state.auth:
         if user_email in ["imanmuhamad9@gmail.com", "admin@perusahaan.com", "xxx@gmail.com"]:
             st.session_state.auth = True
             st.session_state.email_user = user_email
-            log_activity(user_email, "Login", "Berhasil masuk")
+            log_activity(user_email, "Login")
             st.rerun()
         else:
             st.error("Email tidak terdaftar!")
     st.stop()
 
-# 5. HEADER (User Info & Logout)
+# 5. HEADER
 col_header, _ = st.columns([1, 4])
 with col_header:
     st.markdown(f'<p class="user-info">👤 User: {st.session_state.email_user}</p>', unsafe_allow_html=True)
     if st.button("🚪 Logout"):
-        log_activity(st.session_state.email_user, "Logout", "Manual logout")
+        log_activity(st.session_state.email_user, "Logout")
         st.session_state.auth = False
         st.rerun()
 st.divider()
 
-# 6. DATABASE LOADER (Auto-Refresh)
+# 6. DATABASE LOADER
 @st.cache_data(ttl=60)
 def load_db(path):
     if os.path.exists(path):
@@ -95,7 +85,7 @@ def load_db(path):
 
 db, db_stats = load_db("database.xlsx")
 
-# 7. TABS PERMISSIONS
+# 7. TABS
 is_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
 can_download = st.session_state.email_user != "xxx@gmail.com"
 
@@ -108,15 +98,14 @@ else:
 # --- TAB 1: SCREENING ---
 with tab_screening:
     if db:
-        # KOTAK PENCARIAN TERPADU
         st.markdown('<div class="search-container">', unsafe_allow_html=True)
         col_metode, col_cari, col_slide = st.columns([1, 2, 2])
         with col_metode:
             metode = st.radio("Metode:", ["Nama", "NIK / Paspor"], horizontal=True)
         with col_cari:
-            query = st.text_input("Cari Data:", placeholder="Masukkan Nama atau NIK...")
+            query = st.text_input("Cari Data:", placeholder="Nama / NIK...")
         with col_slide:
-            threshold = st.slider("🎯 Akurasi Pencarian (%)", 50, 100, 85)
+            threshold = st.slider("🎯 Akurasi (%)", 50, 100, 85)
         st.markdown('</div>', unsafe_allow_html=True)
 
         if query:
@@ -124,12 +113,11 @@ with tab_screening:
             found = False
             results = []
             target_sheets = ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']
-            log_activity(st.session_state.email_user, "Pencarian", f"Query: {query} | Acc: {threshold}%")
+            log_activity(st.session_state.email_user, "Pencarian")
 
             for sn in target_sheets:
                 if sn in db:
                     df = db[sn].copy()
-                    
                     def check_row(row):
                         best_s = 0
                         reason = "-"
@@ -155,9 +143,8 @@ with tab_screening:
                         found = True
                         match = match.sort_values('SKOR', ascending=False)
                         results.append(match)
-                        
                         with st.expander(f"🚩 Database: {sn} ({len(match)} ditemukan)", expanded=True):
-                            # HIGHLIGHT: Memberi warna kuning pada baris hasil
+                            # Highlight warna kuning pada baris hasil
                             styled_df = match.style.background_gradient(subset=['SKOR'], cmap='YlGn') \
                                                    .applymap(lambda x: 'background-color: #ffffcc', subset=['ALASAN MATCH'])
                             st.dataframe(styled_df, hide_index=True, use_container_width=True)
@@ -167,26 +154,22 @@ with tab_screening:
                 final_df = pd.concat(results)
                 buf = io.BytesIO()
                 with pd.ExcelWriter(buf) as w: final_df.to_excel(w, index=False)
-                st.download_button("📥 Download Hasil Screening", buf.getvalue(), f"Hasil_{query}.xlsx", use_container_width=True)
+                st.download_button("📥 Download Hasil", buf.getvalue(), f"Hasil.xlsx", use_container_width=True)
             elif query and not found:
-                st.warning(f"Data '{query}' tidak ditemukan.")
+                st.warning("Data tidak ditemukan.")
     else:
-        st.error("Database 'database.xlsx' tidak ditemukan.")
+        st.error("File database.xlsx tidak ditemukan.")
 
 # --- TAB 2: LOG & STATISTIK (Admin Only) ---
 if tab_log and is_admin:
     with tab_log:
         cl, cr = st.columns([1, 2])
         with cl:
-            st.subheader("📊 Statistik Database")
+            st.subheader("📊 Statistik")
             if db_stats:
                 st.table(pd.DataFrame(list(db_stats.items()), columns=['Nama Sheet', 'Total Data']))
-                st.metric("Total Seluruh Data", sum(db_stats.values()))
         with cr:
-            st.subheader("📜 Audit Trail Detail")
+            st.subheader("📜 Log Aktivitas")
             if os.path.exists("log_aktivitas.csv"):
-                try:
-                    df_l = pd.read_csv("log_aktivitas.csv", sep=';').iloc[::-1]
-                    st.dataframe(df_l, use_container_width=True, hide_index=True)
-                except:
-                    st.error("Gagal membaca log aktivitas.")
+                df_l = pd.read_csv("log_aktivitas.csv").iloc[::-1]
+                st.dataframe(df_l, use_container_width=True, hide_index=True)
