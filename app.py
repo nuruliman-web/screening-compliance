@@ -4,15 +4,21 @@ from thefuzz import fuzz
 import os
 import io
 
-# 1. KONFIGURASI DASAR
+# 1. KONFIGURASI HALAMAN
 st.set_page_config(page_title="Screening System", layout="wide", initial_sidebar_state="expanded")
 
-# --- CSS MINIMALIS (HANYA UNTUK MERAPIKAN JARAK) ---
+# CSS Khusus: Mengecilkan font email di sidebar agar tidak turun ke bawah
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    .block-container {padding-top: 1rem;}
+    header {background-color: transparent;}
+    [data-testid="stSidebarUserContent"] {display: none;}
+    /* Font email sidebar */
+    .email-text {
+        font-size: 14px;
+        white-space: nowrap;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -34,14 +40,15 @@ if not st.session_state.auth:
             st.error("Email tidak terdaftar!")
     st.stop()
 
-# 3. SIDEBAR (DIPAKSA MUNCUL & DESAIN SIMPEL)
+# 3. SIDEBAR (EMAIL 1 BARIS & LOGOUT SEJAJAR)
 with st.sidebar:
-    # Baris User & Logout Sejajar
-    col_a, col_b = st.columns([2, 1])
+    # Menggunakan rasio kolom 4:1 agar area email jauh lebih luas
+    col_a, col_b = st.columns([4, 1.2])
     with col_a:
-        st.write(f"👤 **{st.session_state.email_user}**")
+        # Menggunakan HTML agar font bisa diatur ukurannya
+        st.markdown(f'<p class="email-text">👤 <b>{st.session_state.email_user}</b></p>', unsafe_allow_html=True)
     with col_b:
-        if st.button("Logout"):
+        if st.button("Out"):
             st.session_state.auth = False
             st.rerun()
     
@@ -50,7 +57,7 @@ with st.sidebar:
     # Pengaturan (Slider)
     st.write("🎯 **Akurasi Nama (%)**")
     threshold = st.slider("", 50, 100, 85, label_visibility="collapsed")
-    st.caption("Geser untuk atur sensitivitas pencarian.")
+    st.caption("Atur sensitivitas pencarian.")
 
 # 4. APLIKASI UTAMA
 st.title("🔍 Screening APU, PPT, dan PPPSPM")
@@ -117,4 +124,4 @@ if db:
         elif query:
             st.warning("Data tidak ditemukan.")
 else:
-    st.error("Pastikan file 'database.xlsx' ada di folder yang sama.")
+    st.error("Pastikan file 'database.xlsx' ada.")
