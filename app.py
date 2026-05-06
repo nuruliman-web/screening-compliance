@@ -72,7 +72,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. LOGIN SYSTEM (PERMANENT BLOCK)
+# 2. LOGIN SYSTEM (FIX INDEX ERROR)
 # ==========================================
 df_w = load_whitelist()
 
@@ -80,49 +80,55 @@ if not st.session_state.auth:
     st.title("🔐 Login Screening System")
     email_in = st.text_input("Email:", key=f"e_{st.session_state.f_key}").lower().strip()
     
-    if email_in in df_w['Email'].values:
-        # Ambil data user dari whitelist
-        user_info = df_w[df_w['Email'] == email_in].iloc[0]
+    if email_in != "":
+        # Cari data user di whitelist
+        user_match = df_w[df_w['Email'] == email_in]
         
-        # CEK APAKAH STATUSNYA BLOCKED
-        if user_info['Status'] == 'Blocked':
-            st.error(f"❌ Akun {email_in} TERBLOKIR!")
-            st.info("Anda telah salah password lebih dari 3x. Silakan hubungi Admin untuk buka blokir.")
-            st.stop()
+        if not user_match.empty:
+            # Ambil data user secara aman
+            user_info = user_match.iloc[0]
+            
+            # 1. CEK STATUS BLOKIR
+            # Pakai .get() supaya kalau kolom Status belum ada, nggak error
+            if user_info.get('Status') == 'Blocked':
+                st.error(f"❌ Akun {email_in} TERBLOKIR!")
+                st.info("Anda salah password 3x. Hubungi Admin untuk buka blokir.")
+                st.stop()
 
-        db_u = load_user_db()
-        user_row = db_u[db_u['Email'] == email_in]
-        
-        if user_row.empty:
-            p1 = st.text_input("Buat Password Baru:", type="password")
-            if st.button("Daftar"):
-                new_u = pd.DataFrame([[email_in, hash_pass(p1)]], columns=["Email", "PasswordHash"])
-                pd.concat([db_u, new_u]).to_csv(USER_DB_FILE, index=False)
-                st.success("Berhasil! Silakan Login."); time.sleep(1); st.rerun()
-        else:
-            pwd = st.text_input("Password:", type="password", key=f"p_{st.session_state.f_key}")
-            if st.button("Masuk"):
-                if hash_pass(pwd) == user_row.iloc[0]['PasswordHash']:
-                    st.session_state.login_attempts = 0 # Reset temp counter
-                    st.session_state.auth, st.session_state.user = True, email_in
-                    log_activity(email_in, "Login")
-                    st.rerun()
-                else:
-                    # Tambah counter salah (di session dulu)
-                    st.session_state.login_attempts += 1
-                    
-                    if st.session_state.login_attempts >= 3:
-                        # UPDATE STATUS DI CSV JADI BLOCKED
-                        df_w.loc[df_w['Email'] == email_in, 'Status'] = 'Blocked'
-                        save_whitelist(df_w)
-                        log_activity(email_in, "AKUN TERBLOKIR (3x Salah PW)")
+            # 2. PROSES LOGIN
+            db_u = load_user_db()
+            user_row = db_u[db_u['Email'] == email_in]
+            
+            if user_row.empty:
+                p1 = st.text_input("Buat Password Baru:", type="password")
+                if st.button("Daftar"):
+                    new_u = pd.DataFrame([[email_in, hash_pass(p1)]], columns=["Email", "PasswordHash"])
+                    pd.concat([db_u, new_u]).to_csv(USER_DB_FILE, index=False)
+                    st.success("Berhasil! Silakan Login."); time.sleep(1); st.rerun()
+            else:
+                pwd = st.text_input("Password:", type="password", key=f"p_{st.session_state.f_key}")
+                if st.button("Masuk"):
+                    if hash_pass(pwd) == user_row.iloc[0]['PasswordHash']:
+                        st.session_state.login_attempts = 0
+                        st.session_state.auth, st.session_state.user = True, email_in
+                        log_activity(email_in, "Login")
                         st.rerun()
                     else:
-                        st.error(f"Sandi Salah! Sisa percobaan: {3 - st.session_state.login_attempts}")
-    elif email_in != "":
-        st.error("Email tidak terdaftar!")
+                        # Tambah hitungan salah
+                        st.session_state.login_attempts = st.session_state.get('login_attempts', 0) + 1
+                        
+                        if st.session_state.login_attempts >= 3:
+                            # Update status jadi Blocked di file CSV
+                            df_w.loc[df_w['Email'] == email_in, 'Status'] = 'Blocked'
+                            save_whitelist(df_w)
+                            log_activity(email_in, "AKUN TERBLOKIR")
+                            st.rerun()
+                        else:
+                            st.error(f"Sandi Salah! Sisa percobaan: {3 - st.session_state.login_attempts}")
+        else:
+            st.error("Email tidak terdaftar di Whitelist!")
+            
     st.stop()
-
 # ==========================================
 # 3. IDENTIFIKASI ROLE (UNTUK MENU)
 # ==========================================
