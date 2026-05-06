@@ -13,25 +13,23 @@ def load_user_db():
         return pd.read_csv(USER_DB_FILE)
     return pd.DataFrame(columns=["Email", "PasswordHash"])
 
-# --- FUNGSI WHITELIST (DIPERBAIKI) ---
 def load_whitelist():
-    # Jika file ada, kita cek isinya
-    if os.path.exists(WHITELIST_FILE):
-        try:
-            df = pd.read_csv(WHITELIST_FILE)
-            # CEK: Apakah kolom 'Email' dan 'Role' ada?
-            if "Email" in df.columns and "Role" in df.columns:
-                return df
-            else:
-                # Kalau kolom salah, kita timpa dengan format bener
-                raise ValueError("Kolom tidak sesuai")
-        except:
-            # Jika file rusak/kosong/kolom salah, buat DataFrame baru
-            df = pd.DataFrame([{"Email": "imanmuhamad9@gmail.com", "Role": "Admin"}])
+    # Jika file tidak ada atau rusak, langsung buat baru dengan Iman sebagai Admin
+    if not os.path.exists(WHITELIST_FILE):
+        df = pd.DataFrame([{"Email": "imanmuhamad9@gmail.com", "Role": "Admin"}])
+        df.to_csv(WHITELIST_FILE, index=False)
+        return df
+    
+    try:
+        df = pd.read_csv(WHITELIST_FILE)
+        # Jika kolom Role tidak ada, tambahkan otomatis
+        if "Role" not in df.columns:
+            df["Role"] = "User" # Default
+            # Khusus email kamu, set Admin
+            df.loc[df['Email'] == 'imanmuhamad9@gmail.com', 'Role'] = 'Admin'
             df.to_csv(WHITELIST_FILE, index=False)
-            return df
-    else:
-        # Jika file tidak ada, buat baru
+        return df
+    except:
         df = pd.DataFrame([{"Email": "imanmuhamad9@gmail.com", "Role": "Admin"}])
         df.to_csv(WHITELIST_FILE, index=False)
         return df
