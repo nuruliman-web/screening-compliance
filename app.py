@@ -4,12 +4,20 @@ from thefuzz import fuzz
 import os
 import io
 
-# 1. KONFIGURASI HALAMAN (Initial sidebar expanded agar tidak tertutup otomatis)
+# 1. KONFIGURASI HALAMAN
 st.set_page_config(
     page_title="Screening System", 
     layout="wide", 
     initial_sidebar_state="expanded"
 )
+
+# CSS Minimalis (Ngebersihin menu kanan aja, sidebar biarin standar biar nggak ilang)
+st.markdown("""
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    </style>
+    """, unsafe_allow_html=True)
 
 # 2. LOGIN SYSTEM
 ALLOWED_EMAILS = ["imanmuhamad9@gmail.com", "admin@perusahaan.com"]
@@ -29,26 +37,27 @@ if not st.session_state.auth:
             st.error("Email tidak terdaftar!")
     st.stop()
 
-# 3. SIDEBAR (STRUKTUR STABIL - LOGOUT DI BAWAH)
-# Tampilkan Info User di paling atas
-st.sidebar.write(f"👤 **User Login:**")
-st.sidebar.info(st.session_state.email_user)
+# 3. SIDEBAR (LOGOUT DI BAWAH BANGET & EMAIL TULISAN BIASA)
+with st.sidebar:
+    st.write("👤 **User Login:**")
+    # Pakai markdown biasa supaya tidak bisa diklik dan tetep 1 baris
+    st.markdown(f"<span style='font-size:14px;'>{st.session_state.email_user}</span>", unsafe_allow_html=True)
+    
+    st.divider()
+    
+    st.write("🎯 **Akurasi Nama (%)**")
+    threshold = st.slider("Akurasi", 50, 100, 85, label_visibility="collapsed")
+    st.caption("Atur sensitivitas pencarian.")
 
-st.sidebar.divider()
-
-# Pengaturan Kemiripan
-st.sidebar.write("🎯 **Akurasi Nama (%)**")
-threshold = st.sidebar.slider("Akurasi", 50, 100, 85, label_visibility="collapsed")
-st.sidebar.caption("Geser ke kanan untuk hasil lebih akurat.")
-
-# Paksa tombol Logout ke bawah dengan spacer (empty space)
-for _ in range(15): 
-    st.sidebar.write("")
-
-st.sidebar.divider()
-if st.sidebar.button("🚪 Keluar / Logout", use_container_width=True):
-    st.session_state.auth = False
-    st.rerun()
+    # Trik "Space Filler" supaya logout turun ke bawah banget
+    # Kita buat kontainer kosong yang besar
+    for _ in range(20):
+        st.write("") 
+    
+    st.divider()
+    if st.button("🚪 Keluar / Logout", use_container_width=True):
+        st.session_state.auth = False
+        st.rerun()
 
 # 4. APLIKASI UTAMA
 st.title("🔍 Screening APU, PPT, dan PPPSPM")
@@ -69,8 +78,8 @@ def load_db(path):
 db = load_db("database.xlsx")
 
 if db:
-    metode = st.radio("Metode Pencarian:", ["Nama", "NIK / Paspor"], horizontal=True)
-    query = st.text_input("Cari Data:", placeholder="Masukkan Nama atau NIK...")
+    metode = st.radio("Pilih Metode:", ["Nama", "NIK / Paspor"], horizontal=True)
+    query = st.text_input("Cari Data Nasabah:", placeholder="Masukkan Nama atau NIK...")
 
     if query:
         q_clean = " ".join(query.split()).lower()
