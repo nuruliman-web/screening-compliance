@@ -6,6 +6,7 @@ import io
 import time
 import uuid
 import hashlib
+import re
 from datetime import datetime, timedelta
 
 # 1. KONFIGURASI HALAMAN
@@ -148,10 +149,12 @@ with tabs[0]:
     st.markdown('</div>', unsafe_allow_html=True)
     
     if query:
-        # LOGIKA VALIDASI DIGIT
         q_strip = query.replace(" ", "").replace(".", "").replace("-", "")
         
-        if metode == "NIK" and len(q_strip) < 16:
+        # --- LOGIKA VALIDASI BARU ---
+        if metode == "Nama" and any(char.isdigit() for char in query):
+            st.error("❌ Pencarian Nama tidak boleh mengandung angka!")
+        elif metode == "NIK" and len(q_strip) < 16:
             st.error(f"❌ NIK harus minimal 16 digit! (Input Anda: {len(q_strip)} digit)")
         elif metode == "Paspor" and len(q_strip) < 7:
             st.error(f"❌ Nomor Paspor harus minimal 7 karakter!")
