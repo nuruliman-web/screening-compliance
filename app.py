@@ -6,9 +6,9 @@ import io
 from datetime import datetime
 
 # 1. KONFIGURASI HALAMAN
-st.set_page_config(page_title="Multi-Database Screening System", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Screening System Multi-Database", layout="wide", initial_sidebar_state="collapsed")
 
-# 2. ORODHA YA LINK KWA KILA SHEET (Tayari zimeingizwa link zako)
+# 2. DAFTAR LINK PER SHEET (Sesuai link gid yang kamu kasih)
 LINK_SHEETS = {
     "JUDOL": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTwj6BDBGvo9yWRYMkPGNxPi9KtLrbU8qT8zA5VdiogRlp1JoxBDADyh3xF2gWROuPS0pBujoYiKUn-/pub?gid=1397546375&single=true&output=csv",
     "DTTOT": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTwj6BDBGvo9yWRYMkPGNxPi9KtLrbU8qT8zA5VdiogRlp1JoxBDADyh3xF2gWROuPS0pBujoYiKUn-/pub?gid=1229360429&single=true&output=csv",
@@ -57,16 +57,16 @@ if "auth" not in st.session_state: st.session_state.auth = False
 if not st.session_state.auth:
     st.title("🔐 Login Screening System")
     u_email = st.text_input("Email:").lower().strip()
-    if st.button("Ingia"):
+    if st.button("Masuk"):
         if u_email in ["imanmuhamad9@gmail.com", "admin@perusahaan.com", "xxx@gmail.com"]:
             st.session_state.auth = True
             st.session_state.email_user = u_email
             log_activity(u_email, "Login")
             st.rerun()
-        else: st.error("Email haijasajiliwa!")
+        else: st.error("Email tidak terdaftar!")
     st.stop()
 
-# 6. LOAD DATA KUTOKA KILA SHEET
+# 6. LOAD DATA DARI SEMUA SHEET
 @st.cache_data(ttl=300)
 def load_all_databases():
     all_data = {}
@@ -79,15 +79,15 @@ def load_all_databases():
             stats[name] = len(df)
             total += len(df)
         except Exception as e:
-            st.error(f"Hitilafu ya kusoma {name}: {e}")
+            st.error(f"Gagal membaca sheet {name}: {e}")
             continue
     return all_data, stats, total
 
 db, db_stats, total_all = load_all_databases()
 
 # 7. HEADER
-st.markdown(f'<p class="user-info">👤 Mtumiaji: {st.session_state.email_user}</p>', unsafe_allow_html=True)
-if st.button("🚪 Ondoka"):
+st.markdown(f'<p class="user-info">👤 User: {st.session_state.email_user}</p>', unsafe_allow_html=True)
+if st.button("🚪 Logout"):
     log_activity(st.session_state.email_user, "Logout")
     st.session_state.auth = False
     st.rerun()
@@ -95,15 +95,15 @@ st.divider()
 
 # 8. TABS
 is_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
-tabs = st.tabs(["🔍 Ukaguzi wa Nasaba", "📜 Logi ya Admin"]) if is_admin else st.tabs(["🔍 Ukaguzi wa Nasaba"])
+tabs = st.tabs(["🔍 Screening Nasabah", "📜 Log Admin"]) if is_admin else st.tabs(["🔍 Screening Nasabah"])
 
 # --- TAB SCREENING ---
 with tabs[0]:
     st.markdown('<div class="search-container">', unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 2, 2])
-    with c1: metode = st.radio("Njia ya Kutafuta:", ["Nama", "NIK / Paspor"], horizontal=True)
-    with c2: query = st.text_input("Tafuta Takwimu:", placeholder="Andika hapa...")
-    with c3: threshold = st.slider("🎯 Usahihi (%)", 50, 100, 85)
+    with c1: metode = st.radio("Metode:", ["Nama", "NIK / Paspor"], horizontal=True)
+    with c2: query = st.text_input("Cari Data:", placeholder="Ketik nama atau NIK...")
+    with c3: threshold = st.slider("🎯 Akurasi (%)", 50, 100, 85)
     st.markdown('</div>', unsafe_allow_html=True)
 
     if query and db:
@@ -125,10 +125,10 @@ with tabs[0]:
                             if s > max_score: max_score = s
                     else:
                         if q_clean == val:
-                            matches_info.append(f"{c} (Match)")
+                            matches_info.append(f"{c} (Cocok)")
                             max_score = 100
                 if max_score > 0:
-                    return pd.Series([max_score, "Imepatikana kwenye: " + ", ".join(matches_info)])
+                    return pd.Series([max_score, "Match pada: " + ", ".join(matches_info)])
                 return pd.Series([0, "-"])
 
             df_temp = df_data.copy()
@@ -145,20 +145,20 @@ with tabs[0]:
                     st.dataframe(display_df, hide_index=True, use_container_width=True)
 
         if query and not found:
-            st.warning("Data haikupatikana katika hifadhidata zote 4.")
+            st.warning("Data tidak ditemukan di semua database.")
 
 # --- TAB LOG & STATS ---
 if is_admin:
     with tabs[1]:
-        st.subheader("📊 Takwimu za Hifadhidata (4 Sheets)")
+        st.subheader("📊 Statistik Database (4 Sheets)")
         if db_stats:
             cols = st.columns(len(db_stats) + 1)
             for i, (name, count) in enumerate(db_stats.items()):
                 with cols[i]:
                     st.markdown(f'<div class="stat-card"><small>{name}</small><br><strong>{count:,}</strong></div>', unsafe_allow_html=True)
             with cols[-1]:
-                st.markdown(f'<div class="stat-card" style="background-color: #0068c9; color: white;"><small>JUMLA KUU</small><br><strong>{total_all:,}</strong></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="stat-card" style="background-color: #0068c9; color: white;"><small>TOTAL DATA</small><br><strong>{total_all:,}</strong></div>', unsafe_allow_html=True)
         st.divider()
-        st.subheader("📜 Logi ya Shughuli za Mtumiaji")
+        st.subheader("📜 Log Aktivitas User")
         if os.path.exists("log_aktivitas.csv"):
             st.dataframe(pd.read_csv("log_aktivitas.csv").iloc[::-1], use_container_width=True, hide_index=True)
