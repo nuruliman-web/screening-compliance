@@ -7,13 +7,11 @@ import io
 # 1. SETUP HALAMAN
 st.set_page_config(page_title="Screening System", layout="wide")
 
-# CSS untuk merapikan tampilan (Header tetap ada agar tombol sidebar tidak hilang)
+# CSS SEDERHANA (Hanya untuk sembunyikan menu titik tiga di pojok kanan agar bersih)
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {height: 40px; background-color: transparent;}
-    [data-testid="stSidebarUserContent"] {display: none;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -35,23 +33,20 @@ if not st.session_state.auth:
             st.error("Email tidak terdaftar!")
     st.stop()
 
-# 3. SIDEBAR (DESAIN BARU)
+# 3. SIDEBAR (INFO USER & LOGOUT SEJAJAR)
 with st.sidebar:
-    # Baris Informasi User & Logout sejajar
-    col_user, col_logout = st.columns([2, 1])
-    with col_user:
-        st.write(f"**User login:** \n{st.session_state.email_user}")
-    with col_logout:
+    # Membuat 2 kolom di sidebar: kolom 1 untuk teks, kolom 2 untuk tombol
+    c1, c2 = st.columns([3, 2])
+    with c1:
+        st.write(f"**User login:**\n{st.session_state.email_user}")
+    with c2:
         if st.button("Logout"):
             st.session_state.auth = False
             st.rerun()
     
     st.divider()
-    
-    # Pengaturan Kemiripan
-    st.subheader("Ambang Kemiripan")
-    threshold = st.slider("%", 50, 100, 85)
-    st.caption("Atur akurasi pencarian nama.")
+    st.subheader("Ambang Kemiripan (%)")
+    threshold = st.slider("Atur Sensitivitas", 50, 100, 85)
 
 # 4. MAIN APP
 st.title("🔍 Screening APU, PPT, dan PPPSPM")
@@ -81,33 +76,34 @@ if db:
         found = False
         results = []
         
-        for sheet_name in ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']:
-            if sheet_name in db:
-                df = db[sheet_name].copy()
+        target_sheets = ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']
+        for sn in target_sheets:
+            if sn in db:
+                df = db[sn].copy()
                 
                 def score_row(row):
-                    top_score = 0
+                    top = 0
                     cols = [c for c in df.columns if 'nama' in c.lower()] if metode == "Nama" else df.columns
                     for c in cols:
                         if pd.notna(row[c]):
                             val = " ".join(str(row[c]).split()).lower()
                             if metode == "Nama":
                                 s = fuzz.token_sort_ratio(q_clean, val)
-                                top_score = max(top_score, s)
+                                top = max(top, s)
                             else:
-                                if q_clean == val: top_score = 100
-                    return top_score
+                                if q_clean == val: top = 100
+                    return top
 
-                df.insert(0, 'SKOR_KEMIRIPAN', df.apply(score_row, axis=1))
+                df.insert(0, 'SKOR', df.apply(score_row, axis=1))
                 limit = threshold if metode == "Nama" else 100
-                match = df[df['SKOR_KEMIRIPAN'] >= limit].copy()
+                match = df[df['SKOR'] >= limit].copy()
                 
                 if not match.empty:
                     found = True
-                    match = match.sort_values('SKOR_KEMIRIPAN', ascending=False)
+                    match = match.sort_values('SKOR', ascending=False)
                     results.append(match)
-                    with st.expander(f"🚩 Hasil Database: {sheet_name}", expanded=True):
-                        st.dataframe(match, hide_index=True)
+                    with st.expander(f"🚩 Database: {sn}", expanded=True):
+                        st.dataframe(match, hide_index=True, use_container_width=True)
 
         if found:
             st.divider()
