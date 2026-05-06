@@ -7,11 +7,15 @@ import io
 # 1. SETUP HALAMAN
 st.set_page_config(page_title="Screening System", layout="wide")
 
-# CSS SEDERHANA (Hanya untuk sembunyikan menu titik tiga di pojok kanan agar bersih)
+# CSS Minimalis: Menghilangkan elemen pengganggu tapi tetap mempertahankan fungsionalitas sidebar
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
+    header {background-color: transparent;}
+    [data-testid="stSidebarUserContent"] {display: none;}
+    /* Membuat jarak yang lebih rapat di sidebar */
+    .block-container {padding-top: 2rem;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -33,22 +37,27 @@ if not st.session_state.auth:
             st.error("Email tidak terdaftar!")
     st.stop()
 
-# 3. SIDEBAR (INFO USER & LOGOUT SEJAJAR)
+# 3. SIDEBAR (SIMPEL & BERSIH)
 with st.sidebar:
-    # Membuat 2 kolom di sidebar: kolom 1 untuk teks, kolom 2 untuk tombol
-    c1, c2 = st.columns([3, 2])
+    # Baris User & Logout (Sejajar & Rapi)
+    c1, c2 = st.columns([3, 1.5])
     with c1:
-        st.write(f"**User login:**\n{st.session_state.email_user}")
+        st.caption("User login:")
+        st.write(f"**{st.session_state.email_user}**")
     with c2:
-        if st.button("Logout"):
+        st.write("") # Spacer
+        if st.button("Logout", use_container_width=True):
             st.session_state.auth = False
             st.rerun()
     
     st.divider()
-    st.subheader("Ambang Kemiripan (%)")
-    threshold = st.slider("Atur Sensitivitas", 50, 100, 85)
+    
+    # Pengaturan (Slider Minimalis)
+    st.subheader("Ambang Kemiripan")
+    threshold = st.slider("%", 50, 100, 85)
+    st.caption("Sensitivitas pencarian nama.")
 
-# 4. MAIN APP
+# 4. APLIKASI UTAMA
 st.title("🔍 Screening APU, PPT, dan PPPSPM")
 
 @st.cache_data
@@ -61,22 +70,24 @@ def load_db(path):
                     if pd.api.types.is_datetime64_any_dtype(data[s][c]):
                         data[s][c] = data[s][c].dt.strftime('%Y-%m-%d')
             return data
-        except:
-            return None
+        except: return None
     return None
 
 db = load_db("database.xlsx")
 
 if db:
-    metode = st.radio("Pilih Metode:", ["Nama", "NIK / Paspor"], horizontal=True)
-    query = st.text_input("Cari Data Nasabah:")
+    # Pilihan Metode & Input
+    metode = st.radio("Metode:", ["Nama", "NIK / Paspor"], horizontal=True)
+    query = st.text_input("Cari Data Nasabah:", placeholder="Masukkan nama atau NIK...")
 
     if query:
         q_clean = " ".join(query.split()).lower()
         found = False
         results = []
         
+        # Urutan Sheet yang di-scan
         target_sheets = ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']
+        
         for sn in target_sheets:
             if sn in db:
                 df = db[sn].copy()
@@ -110,7 +121,7 @@ if db:
             final_df = pd.concat(results)
             buf = io.BytesIO()
             with pd.ExcelWriter(buf) as w: final_df.to_excel(w, index=False)
-            st.download_button("📥 Download Hasil", buf.getvalue(), "Hasil_Screening.xlsx")
+            st.download_button("📥 Download Excel", buf.getvalue(), "Hasil_Screening.xlsx", use_container_width=True)
         elif query:
             st.warning("Data tidak ditemukan.")
 else:
