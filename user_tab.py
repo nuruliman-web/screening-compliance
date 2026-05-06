@@ -3,86 +3,81 @@ import pandas as pd
 from auth_utils import load_whitelist, save_whitelist, load_user_db, USER_DB_FILE
 
 def run_user_management():
-    st.markdown("### 👥 Manajemen Akses & Pengguna")
+    # Header Menu
+    st.markdown("### 👥 Manajemen Pengguna")
+    st.write("Kelola akses email, status akun, dan reset password user di sini.")
     
-    # 1. FORM TAMBAH USER BARU
-    with st.container():
-        st.markdown('<div style="background-color:#f0f2f6; padding:20px; border-radius:10px;">', unsafe_allow_html=True)
+    # 1. CONTAINER TAMBAH USER (BIAR RAPIH)
+    with st.expander("➕ Tambah Akses User Baru", expanded=True):
         c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
-        new_email = c1.text_input("Tambah Email User Baru:", placeholder="contoh: user@gmail.com")
-        if c2.button("➕ Tambah Ke Whitelist", use_container_width=True):
+        new_email = c1.text_input("Email User:", placeholder="masukkan email aktif...")
+        if c2.button("Simpan Akses", use_container_width=True):
             whitelist = load_whitelist()
             if new_email and "@" in new_email:
                 if new_email.lower().strip() not in whitelist:
                     whitelist.append(new_email.lower().strip())
                     save_whitelist(whitelist)
-                    st.success(f"✅ {new_email} berhasil ditambahkan!")
+                    st.success(f"Berhasil menambahkan {new_email}")
                     st.rerun()
                 else:
-                    st.warning("⚠️ Email sudah ada di daftar.")
+                    st.warning("Email sudah terdaftar.")
             else:
-                st.error("❌ Format email salah.")
-        st.markdown('</div>', unsafe_allow_html=True)
+                st.error("Format email tidak valid.")
 
-    st.divider()
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    # 2. TABEL DAFTAR USER
+    # 2. DAFTAR USER DENGAN TAMPILAN TABEL BERSIH
     whitelist = load_whitelist()
     user_db = load_user_db()
     
-    # Header Tabel Manual
-    h1, h2, h3, h4 = st.columns([2, 1, 1, 2])
-    h1.write("**Email User**")
-    h2.write("**Status**")
-    h2.write("") # Spasi
-    h3.write("") # Spasi
-    h4.write("**Aksi / Kontrol**")
-    st.markdown("---")
+    # Frame Utama Tabel
+    st.markdown("""
+        <div style="background-color: #f8f9fa; padding: 10px; border-radius: 8px; border-bottom: 2px solid #dee2e6; margin-bottom: 10px;">
+            <div style="display: flex; font-weight: bold; color: #495057;">
+                <div style="flex: 2.5;">EMAIL PENGGUNA</div>
+                <div style="flex: 1.5; text-align: center;">STATUS AKUN</div>
+                <div style="flex: 2; text-align: center;">KONTROL AKSI</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
     for email in whitelist:
-        # Cek apakah user sudah registrasi (ada di users_db.csv)
         is_registered = not user_db[user_db['Email'] == email].empty
         
-        col_email, col_status, col_reset, col_delete = st.columns([2, 1, 1, 1])
-        
-        # Kolom Nama
-        col_email.write(f"**{email}**")
-        
-        # Kolom Status
-        if is_registered:
-            col_status.markdown('<span style="color:#28a745; font-weight:bold;">● AKTIF</span>', unsafe_allow_html=True)
-        else:
-            col_status.markdown('<span style="color:#ffc107; font-weight:bold;">● PENDING</span>', unsafe_allow_html=True)
-        
-        # Kolom Reset Password
-        if is_registered:
-            if col_reset.button("🔄 Reset", key=f"res_{email}", help="Hapus password agar user bisa buat baru"):
-                # Hapus hanya baris user tersebut di DB password
-                new_db = user_db[user_db['Email'] != email]
-                new_db.to_csv(USER_DB_FILE, index=False)
-                st.toast(f"Password {email} berhasil di-reset!")
-                st.rerun()
-        else:
-            col_reset.write("-")
+        # Container per Baris
+        with st.container():
+            col_mail, col_stat, col_act = st.columns([2.5, 1.5, 2], vertical_alignment="center")
+            
+            # Kolom Email
+            col_mail.markdown(f"**{email}**")
+            
+            # Kolom Status (Badge Style)
+            if is_registered:
+                col_stat.markdown('<div style="text-align:center;"><span style="background-color: #d4edda; color: #155724; padding: 4px 12px; border-radius: 15px; font-size: 12px; font-weight: bold;">✅ AKTIF</span></div>', unsafe_allow_html=True)
+            else:
+                col_stat.markdown('<div style="text-align:center;"><span style="background-color: #fff3cd; color: #856404; padding: 4px 12px; border-radius: 15px; font-size: 12px; font-weight: bold;">⏳ PENDING</span></div>', unsafe_allow_html=True)
+            
+            # Kolom Aksi (Tombol Kecil Sejajar)
+            with col_act:
+                a1, a2 = st.columns(2)
+                if is_registered:
+                    if a1.button("🔄 Reset", key=f"res_{email}", use_container_width=True, help="Hapus password"):
+                        new_db = user_db[user_db['Email'] != email]
+                        new_db.to_csv(USER_DB_FILE, index=False)
+                        st.rerun()
+                else:
+                    a1.write("") # Kosongkan jika pending
 
-        # Kolom Hapus User (Admin Utama tidak bisa hapus diri sendiri)
-        if email == st.session_state.user:
-            col_delete.write("*(You)*")
-        else:
-            if col_delete.button("🗑️ Hapus", key=f"del_{email}", help="Hapus akses user ini selamanya"):
-                # 1. Hapus dari Whitelist
-                new_whitelist = [e for e in whitelist if e != email]
-                save_whitelist(new_whitelist)
-                # 2. Hapus dari DB Password (jika ada)
-                new_db = user_db[user_db['Email'] != email]
-                new_db.to_csv(USER_DB_FILE, index=False)
-                st.toast(f"User {email} telah dihapus.")
-                st.rerun()
+                if email != st.session_state.user: # Jangan hapus diri sendiri
+                    if a2.button("🗑️", key=f"del_{email}", use_container_width=True, help="Hapus User"):
+                        new_whitelist = [e for e in whitelist if e != email]
+                        save_whitelist(new_whitelist)
+                        new_db = user_db[user_db['Email'] != email]
+                        new_db.to_csv(USER_DB_FILE, index=False)
+                        st.rerun()
+                else:
+                    a2.markdown('<p style="text-align:center; font-size:12px; color:gray; margin-top:10px;">Admin</p>', unsafe_allow_html=True)
+            
+            st.markdown('<hr style="margin: 5px 0px; border-top: 1px solid #eee;">', unsafe_allow_html=True)
 
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    st.info("""
-        💡 **Keterangan:**
-        - **AKTIF:** User sudah mendaftarkan password dan bisa login.
-        - **PENDING:** Email terdaftar tapi user belum pernah login/bikin password.
-        - **RESET:** Menghapus password user. Saat login lagi, user akan diminta buat password baru.
-    """)
+    st.info("💡 **Reset** akan menghapus password user tersebut. User harus membuat password baru saat login kembali.")
