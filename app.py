@@ -3,6 +3,8 @@ import pandas as pd
 from thefuzz import fuzz
 import os
 import io
+import time
+from datetime import datetime
 
 # 1. KONFIGURASI HALAMAN
 st.set_page_config(
@@ -11,28 +13,48 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. CSS ANTI-BIRU, ANTI-KLIK & WARNA HITAM
+# 2. FUNGSI LOGGING (Mencatat Login/Logout)
+def log_activity(email, action):
+    log_file = "log_aktivitas.csv"
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    new_data = pd.DataFrame([[now, email, action]], columns=["Waktu", "User", "Aktivitas"])
+    
+    if not os.path.isfile(log_file):
+        new_data.to_csv(log_file, index=False)
+    else:
+        new_data.to_csv(log_file, mode='a', header=False, index=False)
+
+# 3. SETTING TIMEOUT (Contoh: 10 Menit)
+TIMEOUT_SECONDS = 600 # 10 menit x 60 detik
+
+if "last_activity" not in st.session_state:
+    st.session_state.last_activity = time.time()
+
+# Cek apakah sudah timeout
+if st.session_state.get("auth"):
+    current_time = time.time()
+    elapsed_time = current_time - st.session_state.last_activity
+    
+    if elapsed_time > TIMEOUT_SECONDS:
+        log_activity(st.session_state.email_user, "Auto-Logout (Timeout)")
+        st.session_state.auth = False
+        st.session_state.last_activity = time.time()
+        st.rerun()
+
+# Update waktu setiap ada interaksi
+st.session_state.last_activity = time.time()
+
+# 4. CSS ANTI-BIRU & STYLE
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    /* Memaksa semua link/email di sidebar jadi hitam dan tidak bisa diklik */
-    .stSidebar a {
-        color: black !important;
-        text-decoration: none !important;
-        pointer-events: none !important;
-        cursor: default !important;
-    }
-    .user-box {
-        color: black !important;
-        line-height: 1.2; /* Mengunci jarak antar baris supaya rapat */
-        pointer-events: none !important;
-        cursor: default !important;
-    }
+    .stSidebar a { color: black !important; text-decoration: none !important; pointer-events: none !important; }
+    .user-box { color: black !important; line-height: 1.2; pointer-events: none !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. LOGIN SYSTEM
+# 5. LOGIN SYSTEM
 ALLOWED_EMAILS = ["imanmuhamad9@gmail.com", "admin@perusahaan.com"]
 
 if "auth" not in st.session_state:
@@ -45,35 +67,34 @@ if not st.session_state.auth:
         if user_email in ALLOWED_EMAILS:
             st.session_state.auth = True
             st.session_state.email_user = user_email
+            st.session_state.last_activity = time.time() # Reset timer
+            log_activity(user_email, "Login") # CATAT LOGIN
             st.rerun()
         else:
             st.error("Email tidak terdaftar!")
     st.stop()
 
-# 4. SIDEBAR (LOGOUT DI DASAR BANGET & EMAIL HITAM RAPAT)
+# 6. SIDEBAR
 with st.sidebar:
-    # Menggunakan satu blok HTML agar "User Login" dan "Email" rapat
-    st.markdown(f'''
-        <div class="user-box">
-            <b>👤User Login:</b><br>
-            {st.session_state.email_user}
-        </div>
-    ''', unsafe_allow_html=True)
-    
+    st.markdown(f'''<div class="user-box"><b>👤User Login:</b><br>{st.session_state.email_user}</div>''', unsafe_allow_html=True)
     st.divider()
-    
     st.write("🎯 **Akurasi Nama (%)**")
     threshold = st.slider("Akurasi", 50, 100, 85, label_visibility="collapsed")
     
-    # Spacer dinamis untuk dorong logout ke dasar
-    st.markdown('<div style="height: 65vh;"></div>', unsafe_allow_html=True)
+    # Tombol Lihat Log (Hanya untuk admin tertentu jika mau)
+    if st.session_state.email_user == "imanmuhamad9@gmail.com":
+        if st.checkbox("Lihat Log Aktivitas"):
+            if os.path.exists("log_aktivitas.csv"):
+                st.dataframe(pd.read_csv("log_aktivitas.csv").tail(10))
     
+    st.markdown('<div style="height: 50vh;"></div>', unsafe_allow_html=True)
     st.divider()
     if st.button("🚪 Keluar / Logout", use_container_width=True):
+        log_activity(st.session_state.email_user, "Manual Logout") # CATAT LOGOUT
         st.session_state.auth = False
         st.rerun()
 
-# 5. APLIKASI UTAMA
+# 7. APLIKASI UTAMA (Sama seperti kodemu sebelumnya)
 st.title("🔍 Screening APU, PPT, dan PPPSPM")
 
 @st.cache_data
@@ -99,12 +120,11 @@ if db:
         q_clean = " ".join(query.split()).lower()
         found = False
         results = []
-        
         target_sheets = ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']
+        
         for sn in target_sheets:
             if sn in db:
                 df = db[sn].copy()
-                
                 def score_row(row):
                     top = 0
                     cols = [c for c in df.columns if 'nama' in c.lower()] if metode == "Nama" else df.columns
