@@ -8,31 +8,35 @@ import log_tab as admin_log
 import user_tab as admin_user
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN & TIMEOUT
+# 1. KONFIGURASI HALAMAN & SESSION INITIALIZATION
 # ==========================================
 st.set_page_config(page_title="Screening System", layout="wide", initial_sidebar_state="collapsed")
+
+# --- WAJIB: Inisialisasi session state di paling atas ---
+if "auth" not in st.session_state:
+    st.session_state.auth = False
+if "last_activity" not in st.session_state:
+    st.session_state.last_activity = time.time()
 
 # KONFIGURASI WAKTU (3 MENIT = 180 DETIK)
 TIMEOUT_SECONDS = 180 
 
-# Logika Cek Timeout
-if "last_activity" not in st.session_state:
-    st.session_state.last_activity = time.time()
-
+# --- LOGIKA TIMEOUT ---
 if st.session_state.auth:
     current_time = time.time()
     elapsed_time = current_time - st.session_state.last_activity
     
     if elapsed_time > TIMEOUT_SECONDS:
         st.session_state.auth = False
+        st.session_state.user = None # Bersihkan data user
         st.warning("Sesi Anda telah berakhir karena tidak ada aktivitas selama 3 menit.")
         time.sleep(2)
         st.rerun()
     else:
-        # Update waktu aktivitas terakhir setiap ada interaksi
+        # Update waktu aktivitas terakhir hanya jika user sudah login
         st.session_state.last_activity = current_time
 
-# --- CSS TETAP SAMA ---
+# --- CSS STYLING ---
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { display: none; }
