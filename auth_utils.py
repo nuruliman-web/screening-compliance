@@ -14,23 +14,21 @@ def load_user_db():
     return pd.DataFrame(columns=["Email", "PasswordHash"])
 
 def load_whitelist():
-    # Jika file tidak ada atau rusak, langsung buat baru dengan Iman sebagai Admin
     if not os.path.exists(WHITELIST_FILE):
-        df = pd.DataFrame([{"Email": "imanmuhamad9@gmail.com", "Role": "Admin"}])
+        # Tambah kolom Status: 'Active' atau 'Blocked'
+        df = pd.DataFrame([{"Email": "imanmuhamad9@gmail.com", "Role": "Admin", "Status": "Active"}])
         df.to_csv(WHITELIST_FILE, index=False)
         return df
     
     try:
         df = pd.read_csv(WHITELIST_FILE)
-        # Jika kolom Role tidak ada, tambahkan otomatis
-        if "Role" not in df.columns:
-            df["Role"] = "User" # Default
-            # Khusus email kamu, set Admin
-            df.loc[df['Email'] == 'imanmuhamad9@gmail.com', 'Role'] = 'Admin'
+        # Pastikan kolom Status ada, kalau gak ada buat default 'Active'
+        if "Status" not in df.columns:
+            df["Status"] = "Active"
             df.to_csv(WHITELIST_FILE, index=False)
         return df
     except:
-        df = pd.DataFrame([{"Email": "imanmuhamad9@gmail.com", "Role": "Admin"}])
+        df = pd.DataFrame([{"Email": "imanmuhamad9@gmail.com", "Role": "Admin", "Status": "Active"}])
         df.to_csv(WHITELIST_FILE, index=False)
         return df
 
