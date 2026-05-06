@@ -13,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. CSS CUSTOM: HAPUS HEADER & UKURAN TOMBOL
+# 2. CSS CUSTOM: HAPUS HEADER & UKURAN ELEMEN
 st.markdown("""
     <style>
     header[data-testid="stHeader"] {
@@ -29,17 +29,24 @@ st.markdown("""
     .block-container {
         padding-top: 1rem;
     }
-    /* Style tombol logout agar kecil dan manis */
+    /* Style tombol logout agar kecil */
     .stButton > button {
         width: auto !important;
         height: auto !important;
         padding: 2px 15px !important;
         font-size: 12px !important;
     }
+    /* Kotak biru tipis untuk membungkus area pencarian agar rapi */
+    .search-container {
+        background-color: #f0f2f6;
+        padding: 10px;
+        border-radius: 10px;
+        border-left: 5px solid #0068c9;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. FUNGSI LOGGING
+# 3. FUNGSI LOGGING & TIMEOUT (Tetap sama)
 def log_activity(email, action):
     log_file = "log_aktivitas.csv"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -49,7 +56,6 @@ def log_activity(email, action):
     else:
         new_data.to_csv(log_file, mode='a', header=False, index=False)
 
-# 4. TIMEOUT (10 Menit)
 TIMEOUT_SECONDS = 600 
 if "last_activity" not in st.session_state:
     st.session_state.last_activity = time.time()
@@ -61,7 +67,7 @@ if st.session_state.get("auth"):
         st.rerun()
 st.session_state.last_activity = time.time()
 
-# 5. LOGIN SYSTEM
+# 4. LOGIN SYSTEM
 ALLOWED_EMAILS = ["imanmuhamad9@gmail.com", "admin@perusahaan.com", "xxx@gmail.com"]
 
 if "auth" not in st.session_state:
@@ -80,11 +86,7 @@ if not st.session_state.auth:
             st.error("Email tidak terdaftar!")
     st.stop()
 
-# Role & Permissions
-is_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
-can_download = st.session_state.email_user != "xxx@gmail.com"
-
-# 6. HEADER INFO (User & Logout di bawahnya)
+# 5. HEADER (User Info & Logout)
 col_user_box, _ = st.columns([1, 4])
 with col_user_box:
     st.markdown(f'<p class="user-info">👤 User: {st.session_state.email_user}</p>', unsafe_allow_html=True)
@@ -95,7 +97,10 @@ with col_user_box:
 
 st.divider()
 
-# 7. TABS
+# 6. TABS
+is_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
+can_download = st.session_state.email_user != "xxx@gmail.com"
+
 if is_admin:
     tab_screening, tab_log = st.tabs(["🔍 Screening Nasabah", "📜 Log Aktivitas Admin"])
 else:
@@ -119,18 +124,20 @@ with tab_screening:
 
     db = load_db("database.xlsx")
     if db:
-        # Layout Pencarian
-        c_pilih, c_cari = st.columns([1, 3])
-        with c_pilih:
-            metode = st.radio("Metode:", ["Nama", "NIK / Paspor"], horizontal=True)
-        with c_cari:
-            query = st.text_input("Cari Data:", placeholder="Masukkan Nama atau NIK...")
-
-        # Slider dibuat pendek (hanya selebar kolom cari data)
-        # Kita pakai kolom pembagi lagi supaya slidernya gak melar
-        _, c_slider, c_spacer = st.columns([1, 3, 2]) # Sejajarkan dengan c_cari
-        with c_slider:
-            threshold = st.slider("🎯 Akurasi Nama (%)", 50, 100, 85)
+        # KOTAK PENCARIAN TERPADU (Satu Baris)
+        with st.container():
+            st.markdown('<div class="search-container">', unsafe_allow_html=True)
+            col_metode, col_cari, col_slide = st.columns([1, 2, 2])
+            
+            with col_metode:
+                metode = st.radio("Metode:", ["Nama", "NIK / Paspor"], horizontal=True)
+            
+            with col_cari:
+                query = st.text_input("Cari Data:", placeholder="Nama / NIK...")
+            
+            with col_slide:
+                threshold = st.slider("🎯 Akurasi (%)", 50, 100, 85)
+            st.markdown('</div>', unsafe_allow_html=True)
 
         if query:
             q_clean = " ".join(query.split()).lower()
@@ -170,7 +177,7 @@ with tab_screening:
                 final_df = pd.concat(results)
                 buf = io.BytesIO()
                 with pd.ExcelWriter(buf) as w: final_df.to_excel(w, index=False)
-                st.download_button("📥 Download Hasil (Excel)", buf.getvalue(), "Screening.xlsx", use_container_width=True)
+                st.download_button("📥 Download Hasil", buf.getvalue(), "Screening.xlsx", use_container_width=True)
             elif query and not found:
                 st.warning("Data tidak ditemukan.")
     else:
@@ -183,5 +190,5 @@ if tab_log and is_admin:
             df_log = pd.read_csv("log_aktivitas.csv").iloc[::-1]
             csv_buffer = io.StringIO()
             df_log.to_csv(csv_buffer, index=False)
-            st.download_button("📥 Download Log (.csv)", csv_buffer.getvalue(), "Log.csv", mime="text/csv")
+            st.download_button("📥 Download Log", csv_buffer.getvalue(), "Log.csv", mime="text/csv")
             st.dataframe(df_log, use_container_width=True, hide_index=True)
