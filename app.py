@@ -16,19 +16,29 @@ LINK_SHEETS = {
     "SIPENDAR": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTwj6BDBGvo9yWRYMkPGNxPi9KtLrbU8qT8zA5VdiogRlp1JoxBDADyh3xF2gWROuPS0pBujoYiKUn-/pub?gid=288835560&single=true&output=csv"
 }
 
-# 3. CSS CUSTOM
+# 3. CSS CUSTOM (UPDATE DESAIN BLOCK)
 st.markdown("""
     <style>
     header[data-testid="stHeader"] { visibility: hidden; height: 0%; }
     footer { visibility: hidden; }
-    .user-info { color: black !important; font-weight: bold; margin-bottom: 0px; }
-    .header-text { 
-        color: #0068c9; 
+    .user-info { color: black !important; font-weight: bold; margin-bottom: 5px; }
+    
+    /* Desain Banner Block */
+    .header-banner { 
+        background-color: #0068c9; 
+        color: white; 
+        padding: 20px; 
+        border-radius: 10px; 
+        font-size: 28px; 
         font-weight: bold; 
-        font-size: 20px; 
-        text-align: right; 
-        margin-top: 5px;
+        text-align: center;
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
     }
+    
     .block-container { padding-top: 1rem; }
     .stButton > button { width: auto; padding: 2px 15px; font-size: 12px; }
     .search-container {
@@ -36,7 +46,7 @@ st.markdown("""
         padding: 15px;
         border-radius: 10px;
         border-left: 5px solid #0068c9;
-        margin-bottom: 20px;
+        margin-top: 20px;
     }
     .stat-card {
         background-color: #ffffff;
@@ -73,8 +83,9 @@ if not st.session_state.auth:
         else: st.error("Email tidak terdaftar!")
     st.stop()
 
-# 6. HEADER DENGAN TULISAN SCREENING (UPDATE DESAIN)
-col_user, col_title = st.columns([1, 2])
+# 6. HEADER DENGAN BANNER BLOCK (TENGAH KE KANAN)
+col_user, col_banner = st.columns([1, 3]) # Banner dapet porsi lebih gede (3/4 layar)
+
 with col_user:
     st.markdown(f'<p class="user-info">👤 User: {st.session_state.email_user}</p>', unsafe_allow_html=True)
     if st.button("🚪 Logout"):
@@ -82,13 +93,13 @@ with col_user:
         st.session_state.auth = False
         st.rerun()
 
-with col_title:
-    # Bagian Kosong sekarang diisi teks (gambar searching diganti emoji 🔍)
-    st.markdown('<p class="header-text">🔍 Screening Data APU, PPT, dan PPPSPM</p>', unsafe_allow_html=True)
+with col_banner:
+    # Desain nge-block besar
+    st.markdown('<div class="header-banner">🔍 Screening Data APU, PPT, dan PPPSPM</div>', unsafe_allow_html=True)
 
 st.divider()
 
-# 7. LOAD DATA DARI SEMUA SHEET
+# 7. LOAD DATA
 @st.cache_data(ttl=300)
 def load_all_databases():
     all_data = {}
@@ -100,7 +111,7 @@ def load_all_databases():
             all_data[name] = df
             stats[name] = len(df)
             total += len(df)
-        except Exception as e:
+        except:
             continue
     return all_data, stats, total
 
@@ -127,51 +138,4 @@ with tabs[0]:
         for sn, df_data in db.items():
             def find_match(row):
                 matches_info = []
-                max_score = 0
-                check_cols = [c for c in df_data.columns if 'nama' in c.lower()] if metode == "Nama" else df_data.columns
-                for c in check_cols:
-                    val = " ".join(str(row[c]).split()).lower()
-                    if metode == "Nama":
-                        s = fuzz.token_sort_ratio(q_clean, val)
-                        if s >= threshold:
-                            matches_info.append(f"{c} ({s}%)")
-                            if s > max_score: max_score = s
-                    else:
-                        if q_clean == val:
-                            matches_info.append(f"{c} (Cocok)")
-                            max_score = 100
-                if max_score > 0:
-                    return pd.Series([max_score, "Match pada: " + ", ".join(matches_info)])
-                return pd.Series([0, "-"])
-
-            df_temp = df_data.copy()
-            df_temp[['_score', 'ALASAN MATCH']] = df_temp.apply(find_match, axis=1)
-            match = df_temp[df_temp['_score'] > 0].copy()
-            
-            if not match.empty:
-                found = True
-                match = match.sort_values('_score', ascending=False)
-                cols_only = [c for c in match.columns if c not in ['_score', 'ALASAN MATCH']]
-                display_df = match[['ALASAN MATCH'] + cols_only]
-                results_to_export.append(display_df)
-                with st.expander(f"🚩 Database: {sn}", expanded=True):
-                    st.dataframe(display_df, hide_index=True, use_container_width=True)
-
-        if query and not found:
-            st.warning("Data tidak ditemukan di semua database.")
-
-# --- TAB LOG & STATS ---
-if is_admin:
-    with tabs[1]:
-        st.subheader("📊 Statistik Database (4 Sheets)")
-        if db_stats:
-            cols = st.columns(len(db_stats) + 1)
-            for i, (name, count) in enumerate(db_stats.items()):
-                with cols[i]:
-                    st.markdown(f'<div class="stat-card"><small>{name}</small><br><strong>{count:,}</strong></div>', unsafe_allow_html=True)
-            with cols[-1]:
-                st.markdown(f'<div class="stat-card" style="background-color: #0068c9; color: white;"><small>TOTAL DATA</small><br><strong>{total_all:,}</strong></div>', unsafe_allow_html=True)
-        st.divider()
-        st.subheader("📜 Log Aktivitas User")
-        if os.path.exists("log_aktivitas.csv"):
-            st.dataframe(pd.read_csv("log_aktivitas.csv").iloc[::-1], use_container_width=True, hide_index=True)
+                max_score =
