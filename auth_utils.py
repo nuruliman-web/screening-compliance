@@ -24,3 +24,13 @@ def load_whitelist():
 
 def save_whitelist(email_list):
     pd.DataFrame(email_list, columns=['Email']).to_csv(WHITELIST_FILE, index=False)
+# ... (kode sebelumnya tetap sama)
+
+def update_password(email, new_password):
+    df_u = load_user_db()
+    if email in df_u['Email'].values:
+        idx = df_u[df_u['Email'] == email].index
+        df_u.loc[idx, 'PasswordHash'] = hash_pass(new_password)
+        df_u.to_csv(USER_DB_FILE, index=False)
+        return True
+    return False
