@@ -8,7 +8,7 @@ from datetime import datetime
 # 1. KONFIGURASI HALAMAN
 st.set_page_config(page_title="Screening System Multi-Database", layout="wide", initial_sidebar_state="collapsed")
 
-# 2. DAFTAR LINK PER SHEET (Sesuai link gid yang kamu kasih)
+# 2. DAFTAR LINK PER SHEET
 LINK_SHEETS = {
     "JUDOL": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTwj6BDBGvo9yWRYMkPGNxPi9KtLrbU8qT8zA5VdiogRlp1JoxBDADyh3xF2gWROuPS0pBujoYiKUn-/pub?gid=1397546375&single=true&output=csv",
     "DTTOT": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTwj6BDBGvo9yWRYMkPGNxPi9KtLrbU8qT8zA5VdiogRlp1JoxBDADyh3xF2gWROuPS0pBujoYiKUn-/pub?gid=1229360429&single=true&output=csv",
@@ -21,7 +21,14 @@ st.markdown("""
     <style>
     header[data-testid="stHeader"] { visibility: hidden; height: 0%; }
     footer { visibility: hidden; }
-    .user-info { color: black !important; font-weight: bold; }
+    .user-info { color: black !important; font-weight: bold; margin-bottom: 0px; }
+    .header-text { 
+        color: #0068c9; 
+        font-weight: bold; 
+        font-size: 20px; 
+        text-align: right; 
+        margin-top: 5px;
+    }
     .block-container { padding-top: 1rem; }
     .stButton > button { width: auto; padding: 2px 15px; font-size: 12px; }
     .search-container {
@@ -66,7 +73,22 @@ if not st.session_state.auth:
         else: st.error("Email tidak terdaftar!")
     st.stop()
 
-# 6. LOAD DATA DARI SEMUA SHEET
+# 6. HEADER DENGAN TULISAN SCREENING (UPDATE DESAIN)
+col_user, col_title = st.columns([1, 2])
+with col_user:
+    st.markdown(f'<p class="user-info">👤 User: {st.session_state.email_user}</p>', unsafe_allow_html=True)
+    if st.button("🚪 Logout"):
+        log_activity(st.session_state.email_user, "Logout")
+        st.session_state.auth = False
+        st.rerun()
+
+with col_title:
+    # Bagian Kosong sekarang diisi teks (gambar searching diganti emoji 🔍)
+    st.markdown('<p class="header-text">🔍 Screening Data APU, PPT, dan PPPSPM</p>', unsafe_allow_html=True)
+
+st.divider()
+
+# 7. LOAD DATA DARI SEMUA SHEET
 @st.cache_data(ttl=300)
 def load_all_databases():
     all_data = {}
@@ -79,19 +101,10 @@ def load_all_databases():
             stats[name] = len(df)
             total += len(df)
         except Exception as e:
-            st.error(f"Gagal membaca sheet {name}: {e}")
             continue
     return all_data, stats, total
 
 db, db_stats, total_all = load_all_databases()
-
-# 7. HEADER
-st.markdown(f'<p class="user-info">👤 User: {st.session_state.email_user}</p>', unsafe_allow_html=True)
-if st.button("🚪 Logout"):
-    log_activity(st.session_state.email_user, "Logout")
-    st.session_state.auth = False
-    st.rerun()
-st.divider()
 
 # 8. TABS
 is_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
