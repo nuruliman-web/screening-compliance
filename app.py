@@ -23,32 +23,18 @@ st.markdown("""
     footer { visibility: hidden; }
     .user-info { color: black !important; font-weight: bold; margin-bottom: 5px; }
     .header-banner-clean { 
-        color: black; 
-        padding: 10px; 
-        font-size: 32px; 
-        font-weight: 800; 
-        text-align: center;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 100%;
-        letter-spacing: 1px;
+        color: black; padding: 10px; font-size: 32px; font-weight: 800; 
+        text-align: center; display: flex; align-items: center; justify-content: center;
+        height: 100%; letter-spacing: 1px;
     }
     .block-container { padding-top: 1rem; }
-    .stButton > button { width: auto; padding: 2px 15px; font-size: 12px; }
     .search-container {
-        background-color: #f0f2f6;
-        padding: 15px;
-        border-radius: 10px;
-        border-left: 5px solid #0068c9;
-        margin-top: 20px;
+        background-color: #f0f2f6; padding: 15px; border-radius: 10px;
+        border-left: 5px solid #0068c9; margin-top: 20px;
     }
     .stat-card {
-        background-color: #ffffff;
-        padding: 10px;
-        border-radius: 5px;
-        border: 1px solid #e6e9ef;
-        text-align: center;
+        background-color: #ffffff; padding: 10px; border-radius: 5px;
+        border: 1px solid #e6e9ef; text-align: center;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -58,10 +44,8 @@ def log_activity(email, action):
     log_file = "log_aktivitas.csv"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     new_data = pd.DataFrame([[now, email, action]], columns=["Waktu", "User", "Aktivitas"])
-    if not os.path.isfile(log_file): 
-        new_data.to_csv(log_file, index=False)
-    else: 
-        new_data.to_csv(log_file, mode='a', header=False, index=False)
+    if not os.path.isfile(log_file): new_data.to_csv(log_file, index=False)
+    else: new_data.to_csv(log_file, mode='a', header=False, index=False)
 
 # 5. LOGIN SYSTEM
 if "auth" not in st.session_state: st.session_state.auth = False
@@ -77,7 +61,6 @@ if not st.session_state.auth:
         else: st.error("Email tidak terdaftar!")
     st.stop()
 
-# Hak Akses Khusus Admin Download
 is_super_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
 
 # 6. HEADER
@@ -116,12 +99,26 @@ tabs = st.tabs(["🔍 Screening Nasabah", "📜 Log Admin"]) if is_super_admin e
 with tabs[0]:
     st.markdown('<div class="search-container">', unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 2, 2])
-    with c1: metode = st.radio("Metode:", ["Nama", "NIK / Paspor"], horizontal=True)
-    with c2: query = st.text_input("Cari Data:", placeholder="Ketik nama atau NIK...")
-    with c3: threshold = st.slider("🎯 Akurasi (%)", 50, 100, 85)
+    with c1: 
+        metode = st.radio("Metode:", ["Nama", "NIK", "Paspor"], horizontal=True)
+    with c2: 
+        query = st.text_input("Cari Data:", placeholder=f"Masukkan {metode}...")
+    with c3: 
+        threshold = st.slider("🎯 Akurasi Nama (%)", 50, 100, 85)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    if query and db:
+    # LOGIKA VALIDASI NIK 16 DIGIT
+    valid_to_search = True
+    if query:
+        if metode == "NIK":
+            if len(query) != 16:
+                st.warning(f"⚠️ NIK harus berjumlah 16 digit! (Input saat ini: {len(query)} digit)")
+                valid_to_search = False
+        elif metode == "Paspor":
+            # Paspor tidak wajib 16 digit, jadi tetap True
+            valid_to_search = True
+
+    if query and db and valid_to_search:
         q_clean = " ".join(query.split()).lower()
         found = False
         results_to_export = []
@@ -130,7 +127,14 @@ with tabs[0]:
             def find_match(row):
                 matches_info = []
                 max_score = 0
-                check_cols = [c for c in df_data.columns if 'nama' in c.lower()] if metode == "Nama" else df_data.columns
+                
+                # Filter kolom berdasarkan metode
+                if metode == "Nama":
+                    check_cols = [c for c in df_data.columns if 'nama' in c.lower()]
+                else:
+                    # Untuk NIK/Paspor cek semua kolom yang mengandung kata 'nik' atau 'paspor' atau 'identitas'
+                    check_cols = [c for c in df_data.columns if any(x in c.lower() for x in ['nik', 'paspor', 'identitas', 'no'])]
+
                 for c in check_cols:
                     val = " ".join(str(row[c]).split()).lower()
                     if metode == "Nama":
@@ -139,9 +143,11 @@ with tabs[0]:
                             matches_info.append(f"{c} ({s}%)")
                             if s > max_score: max_score = s
                     else:
+                        # Exact Match untuk NIK/Paspor
                         if q_clean == val:
                             matches_info.append(f"{c} (Cocok)")
                             max_score = 100
+                
                 if max_score > 0:
                     return pd.Series([max_score, "Match pada: " + ", ".join(matches_info)])
                 return pd.Series([0, "-"])
@@ -159,7 +165,6 @@ with tabs[0]:
                 with st.expander(f"🚩 Database: {sn}", expanded=True):
                     st.dataframe(display_df, hide_index=True, use_container_width=True)
 
-        # TOMBOL DOWNLOAD HASIL PENCARIAN (KHUSUS IMAN)
         if found and is_super_admin:
             st.divider()
             final_df = pd.concat(results_to_export)
@@ -167,10 +172,10 @@ with tabs[0]:
             with pd.ExcelWriter(buf) as w: final_df.to_excel(w, index=False)
             st.download_button("📥 Download Hasil Screening (Excel)", buf.getvalue(), "Hasil_Pencarian.xlsx", use_container_width=True)
         
-        if query and not found:
-            st.warning("Data tidak ditemukan di semua database.")
+        if not found:
+            st.error("Data tidak ditemukan di semua database.")
 
-# --- TAB LOG & STATS ---
+# --- TAB LOG ---
 if is_super_admin:
     with tabs[1]:
         st.subheader("📊 Statistik Database")
@@ -183,12 +188,9 @@ if is_super_admin:
                 st.markdown(f'<div class="stat-card" style="background-color: #0068c9; color: white;"><small>TOTAL DATA</small><br><strong>{total_all:,}</strong></div>', unsafe_allow_html=True)
         
         st.divider()
-        st.subheader("📜 Log Aktivitas User")
         if os.path.exists("log_aktivitas.csv"):
             log_df = pd.read_csv("log_aktivitas.csv")
             st.dataframe(log_df.iloc[::-1], use_container_width=True, hide_index=True)
-            
-            # TOMBOL DOWNLOAD LOG (KHUSUS IMAN)
             buf_log = io.BytesIO()
             with pd.ExcelWriter(buf_log) as w: log_df.to_excel(w, index=False)
             st.download_button("📥 Download Log Aktivitas (Excel)", buf_log.getvalue(), "Log_Aktivitas.xlsx", use_container_width=True)
