@@ -8,7 +8,7 @@ from datetime import datetime
 # 1. KONFIGURASI HALAMAN
 st.set_page_config(page_title="Screening System", layout="wide", initial_sidebar_state="collapsed")
 
-# 2. CSS CUSTOM (TANPA STYLING WARNA TABEL)
+# 2. CSS CUSTOM
 st.markdown("""
     <style>
     header[data-testid="stHeader"] { visibility: hidden; height: 0%; }
@@ -22,6 +22,13 @@ st.markdown("""
         border-radius: 10px;
         border-left: 5px solid #0068c9;
         margin-bottom: 20px;
+    }
+    .stat-card {
+        background-color: #ffffff;
+        padding: 10px;
+        border-radius: 5px;
+        border: 1px solid #e6e9ef;
+        text-align: center;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -61,15 +68,20 @@ with col_h:
         st.rerun()
 st.divider()
 
-# 6. LOAD DATABASE
+# 6. LOAD DATABASE & STATS
 @st.cache_data(ttl=60)
 def load_db(path):
     if os.path.exists(path):
-        try: return pd.read_excel(path, sheet_name=None)
-        except: return None
-    return None
+        try:
+            data = pd.read_excel(path, sheet_name=None)
+            target_sheets = ['JUDOL', 'DTTOT', 'DPPSPM', 'SIPENDAR']
+            stats = {s: len(data[s]) for s in target_sheets if s in data}
+            total_all = sum(stats.values())
+            return data, stats, total_all
+        except: return None, None, 0
+    return None, None, 0
 
-db = load_db("database.xlsx")
+db, db_stats, total_all = load_db("database.xlsx")
 
 # 7. TABS
 is_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
@@ -100,10 +112,7 @@ with tabs[0]:
                     def find_match(row):
                         matches_info = []
                         max_score = 0
-                        
-                        # Tentukan kolom mana yang dicek
                         check_cols = [c for c in df.columns if 'nama' in c.lower()] if metode == "Nama" else df.columns
-                        
                         for c in check_cols:
                             val = " ".join(str(row[c]).split()).lower()
                             if metode == "Nama":
@@ -115,29 +124,19 @@ with tabs[0]:
                                 if q_clean == val:
                                     matches_info.append(f"{c} (Match)")
                                     max_score = 100
-                        
                         if max_score > 0:
                             return pd.Series([max_score, "Match pada: " + ", ".join(matches_info)])
-                        return pd.Series([0, "-"] )
+                        return pd.Series([0, "-"])
 
                     df[['_score', 'ALASAN MATCH']] = df.apply(find_match, axis=1)
                     match = df[df['_score'] > 0].copy()
-                    
                     if not match.empty:
                         found = True
                         match = match.sort_values('_score', ascending=False)
-                        
-                        # PROSES PINDAH KOLOM KE PALING KIRI
-                        # Ambil semua kolom kecuali skor internal dan Alasan Match
                         cols = [c for c in match.columns if c not in ['_score', 'ALASAN MATCH']]
-                        # Susun ulang: Alasan Match dulu, baru kolom lainnya
-                        new_order = ['ALASAN MATCH'] + cols
-                        display_df = match[new_order]
-                        
+                        display_df = match[['ALASAN MATCH'] + cols]
                         results_to_export.append(display_df)
-                        
                         with st.expander(f"🚩 Database: {sn}", expanded=True):
-                            # Tampilkan tabel polos (Tanpa Styling Warna agar tidak Error)
                             st.dataframe(display_df, hide_index=True, use_container_width=True)
 
             if found and can_download:
@@ -150,8 +149,31 @@ with tabs[0]:
                 st.warning("Data tidak ditemukan.")
     else: st.error("Database tidak ditemukan.")
 
-# --- TAB LOG ---
+# --- TAB LOG & STATISTIK ADMIN ---
 if is_admin:
     with tabs[1]:
+        # TAMPILAN STATISTIK DATABASE
+        st.subheader("📊 Statistik Database Blacklist")
+        if db_stats:
+            cols_stat = st.columns(len(db_stats) + 1)
+            # Tampilkan per sheet
+            for i, (name, count) in enumerate(db_stats.items()):
+                with cols_stat[i]:
+                    st.markdown(f"""<div class="stat-card">
+                                    <small>{name}</small><br>
+                                    <strong>{count:,}</strong>
+                                 </div>""", unsafe_allow_html=True)
+            # Tampilkan Total Akhir
+            with cols_stat[-1]:
+                st.markdown(f"""<div class="stat-card" style="background-color: #0068c9; color: white;">
+                                    <small>TOTAL DATA</small><br>
+                                    <strong>{total_all:,}</strong>
+                                 </div>""", unsafe_allow_html=True)
+        st.divider()
+        
+        # TABEL LOG AKTIVITAS
+        st.subheader("📜 Log Aktivitas User")
         if os.path.exists("log_aktivitas.csv"):
             st.dataframe(pd.read_csv("log_aktivitas.csv").iloc[::-1], use_container_width=True, hide_index=True)
+        else:
+            st.info("Belum ada aktivitas log.")
