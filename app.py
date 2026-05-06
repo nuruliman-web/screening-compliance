@@ -16,27 +16,25 @@ LINK_SHEETS = {
     "SIPENDAR": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTwj6BDBGvo9yWRYMkPGNxPi9KtLrbU8qT8zA5VdiogRlp1JoxBDADyh3xF2gWROuPS0pBujoYiKUn-/pub?gid=288835560&single=true&output=csv"
 }
 
-# 3. CSS CUSTOM (UPDATE DESAIN BLOCK)
+# 3. CSS CUSTOM (Hapus background biru, teks hitam besar)
 st.markdown("""
     <style>
     header[data-testid="stHeader"] { visibility: hidden; height: 0%; }
     footer { visibility: hidden; }
     .user-info { color: black !important; font-weight: bold; margin-bottom: 5px; }
     
-    /* Desain Banner Block */
-    .header-banner { 
-        background-color: #0068c9; 
-        color: white; 
-        padding: 20px; 
-        border-radius: 10px; 
-        font-size: 28px; 
-        font-weight: bold; 
+    /* Desain Banner Tanpa Background */
+    .header-banner-clean { 
+        color: black; 
+        padding: 10px; 
+        font-size: 32px; 
+        font-weight: 800; 
         text-align: center;
-        box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
         display: flex;
         align-items: center;
         justify-content: center;
         height: 100%;
+        letter-spacing: 1px;
     }
     
     .block-container { padding-top: 1rem; }
@@ -83,8 +81,8 @@ if not st.session_state.auth:
         else: st.error("Email tidak terdaftar!")
     st.stop()
 
-# 6. HEADER DENGAN BANNER BLOCK (TENGAH KE KANAN)
-col_user, col_banner = st.columns([1, 3]) # Banner dapet porsi lebih gede (3/4 layar)
+# 6. HEADER DENGAN TULISAN HITAM BESAR (TENGAH KE KANAN)
+col_user, col_banner = st.columns([1, 3])
 
 with col_user:
     st.markdown(f'<p class="user-info">👤 User: {st.session_state.email_user}</p>', unsafe_allow_html=True)
@@ -94,8 +92,8 @@ with col_user:
         st.rerun()
 
 with col_banner:
-    # Desain nge-block besar
-    st.markdown('<div class="header-banner">🔍 Screening Data APU, PPT, dan PPPSPM</div>', unsafe_allow_html=True)
+    # Teks Hitam Besar Nge-block
+    st.markdown('<div class="header-banner-clean">🔍 SCREENING DATA APU, PPT, DAN PPPSPM</div>', unsafe_allow_html=True)
 
 st.divider()
 
@@ -121,7 +119,7 @@ db, db_stats, total_all = load_all_databases()
 is_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
 tabs = st.tabs(["🔍 Screening Nasabah", "📜 Log Admin"]) if is_admin else st.tabs(["🔍 Screening Nasabah"])
 
-# --- TAB SCREENING ---
+# Sisanya tetap sama...
 with tabs[0]:
     st.markdown('<div class="search-container">', unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 2, 2])
@@ -134,7 +132,6 @@ with tabs[0]:
         q_clean = " ".join(query.split()).lower()
         found = False
         results_to_export = []
-
         for sn, df_data in db.items():
             def find_match(row):
                 matches_info = []
@@ -154,11 +151,9 @@ with tabs[0]:
                 if max_score > 0:
                     return pd.Series([max_score, "Match pada: " + ", ".join(matches_info)])
                 return pd.Series([0, "-"])
-
             df_temp = df_data.copy()
             df_temp[['_score', 'ALASAN MATCH']] = df_temp.apply(find_match, axis=1)
             match = df_temp[df_temp['_score'] > 0].copy()
-            
             if not match.empty:
                 found = True
                 match = match.sort_values('_score', ascending=False)
@@ -167,11 +162,9 @@ with tabs[0]:
                 results_to_export.append(display_df)
                 with st.expander(f"🚩 Database: {sn}", expanded=True):
                     st.dataframe(display_df, hide_index=True, use_container_width=True)
-
         if query and not found:
             st.warning("Data tidak ditemukan di semua database.")
 
-# --- TAB LOG & STATS ---
 if is_admin:
     with tabs[1]:
         st.subheader("📊 Statistik Database (4 Sheets)")
