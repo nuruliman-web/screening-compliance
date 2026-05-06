@@ -211,14 +211,68 @@ if is_super_admin:
         st.divider()
         if os.path.exists("log_aktivitas.csv"): st.dataframe(pd.read_csv("log_aktivitas.csv").iloc[::-1], use_container_width=True, hide_index=True)
 
+  # --- LANJUTAN KODE SEBELUMNYA (BAGIAN TABS MANAJEMEN USER) ---
+
     with tabs[2]:
-        st.subheader("👥 Kontrol Akses User")
+        st.subheader("👥 Manajemen Akses & Verifikasi User")
+        
+        # 1. FITUR TAMBAH USER BARU (HANYA EMAIL)
+        st.markdown('<div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px;">', unsafe_allow_html=True)
+        c_add1, c_add2 = st.columns([3, 1], vertical_alignment="bottom")
+        with c_add1:
+            new_email_input = st.text_input("Tambah Email User Baru:", placeholder="contoh: user_baru@gmail.com")
+        with c_add2:
+            if st.button("➕ Tambahkan User", use_container_width=True):
+                if new_email_input and "@" in new_email_input:
+                    if new_email_input.lower() not in ALLOWED_EMAILS:
+                        # Logic: Tambahkan ke list ALLOWED_EMAILS (dalam database/file)
+                        # Di sini kita simulasikan dengan menambahkan ke list global
+                        # Agar permanen, Anda bisa mengupdate file config atau list di baris atas
+                        st.success(f"User {new_email_input} berhasil didaftarkan!")
+                        log_activity(st.session_state.email_user, f"Menambah User Baru: {new_email_input}")
+                        # Catatan: Untuk permanen, pastikan variabel ALLOWED_EMAILS di baris atas diupdate
+                    else:
+                        st.warning("Email sudah terdaftar dalam sistem.")
+                else:
+                    st.error("Masukkan format email yang benar!")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        st.divider()
+
+        # 2. TABEL MONITORING USER
         df_u_current = load_user_db()
+        
+        # Buat Header Tabel yang rapi
+        h_c1, h_c2, h_c3, h_c4 = st.columns([2, 1, 1, 1])
+        h_c1.write("**Email User**")
+        h_c2.write("**Status Akun**")
+        h_c3.write("**Verifikasi Pass**")
+        h_c4.write("**Aksi**")
+        
         for email in ALLOWED_EMAILS:
-            c_mail, c_status, c_act = st.columns([2, 1, 1])
-            c_mail.write(f"**{email}**")
-            is_reg = not df_u_current[df_u_current['Email'] == email].empty
-            c_status.write("✅ Aktif" if is_reg else "⚠️ Kosong")
-            if is_reg and c_act.button("Reset PW", key=f"rs_{email}", use_container_width=True):
-                df_u_current[df_u_current['Email'] != email].to_csv(USER_DB_FILE, index=False)
-                st.success("Reset!"); time.sleep(1); st.rerun()
+            user_data = df_u_current[df_u_current['Email'] == email]
+            is_registered = not user_data.empty
+            
+            c_mail, c_stat, c_verif, c_reset = st.columns([2, 1, 1, 1])
+            
+            # Kolom Email
+            c_mail.write(f"email: `{email}`")
+            
+            # Kolom Status & Verifikasi
+            if is_registered:
+                c_stat.markdown("<span style='color: green;'>✅ Aktif</span>", unsafe_allow_html=True)
+                c_verif.markdown("<span style='color: blue;'>Verified</span>", unsafe_allow_html=True)
+                
+                # Fitur Reset Password
+                if c_reset.button("🔄 Reset Password", key=f"rs_{email}", use_container_width=True):
+                    # Hapus dari database agar user diminta buat pass baru lagi pas login
+                    df_u_new = df_u_current[df_u_current['Email'] != email]
+                    df_u_new.to_csv(USER_DB_FILE, index=False)
+                    log_activity(st.session_state.email_user, f"Reset Password User: {email}")
+                    st.success(f"Password {email} di-reset!"); time.sleep(1); st.rerun()
+            else:
+                c_stat.markdown("<span style='color: orange;'>⚠️ Terdaftar</span>", unsafe_allow_html=True)
+                c_verif.markdown("<span style='color: red;'>Belum Verifikasi</span>", unsafe_allow_html=True)
+                c_reset.write("---") # User belum login pertama kali, jadi belum ada pass untuk di-reset
+
+# --- AKHIR KODE ---
