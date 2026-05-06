@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 # 1. KONFIGURASI HALAMAN
 st.set_page_config(page_title="Screening System Multi-Database", layout="wide", initial_sidebar_state="collapsed")
 
-# 2. DAFTAR LINK DATABASE (GOOGLE SHEETS)
+# 2. DAFTAR LINK DATABASE
 LINK_SHEETS = {
     "JUDOL": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTwj6BDBGvo9yWRYMkPGNxPi9KtLrbU8qT8zA5VdiogRlp1JoxBDADyh3xF2gWROuPS0pBujoYiKUn-/pub?gid=1397546375&single=true&output=csv",
     "DTTOT": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTwj6BDBGvo9yWRYMkPGNxPi9KtLrbU8qT8zA5VdiogRlp1JoxBDADyh3xF2gWROuPS0pBujoYiKUn-/pub?gid=1229360429&single=true&output=csv",
@@ -18,7 +18,7 @@ LINK_SHEETS = {
     "SIPENDAR": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTwj6BDBGvo9yWRYMkPGNxPi9KtLrbU8qT8zA5VdiogRlp1JoxBDADyh3xF2gWROuPS0pBujoYiKUn-/pub?gid=288835560&single=true&output=csv"
 }
 
-# 3. CSS CUSTOM & ANTI-SUGGEST SCRIPT
+# 3. CSS CUSTOM & ANTI-SUGGEST
 st.markdown("""
     <style>
     header[data-testid="stHeader"] { visibility: hidden; height: 0%; }
@@ -34,9 +34,12 @@ st.markdown("""
         background-color: #f0f2f6; padding: 15px; border-radius: 10px;
         border-left: 5px solid #0068c9; margin-top: 20px;
     }
+    .stat-card {
+        padding: 10px; border-radius: 8px; background-color: #ffffff; 
+        border: 1px solid #e6e9ef; text-align: center;
+    }
     </style>
     <script>
-        // Paksa browser untuk tidak menyimpan history input
         const patchInputs = () => {
             const inputs = window.parent.document.getElementsByTagName('input');
             for (let i = 0; i < inputs.length; i++) {
@@ -48,21 +51,16 @@ st.markdown("""
     </script>
     """, unsafe_allow_html=True)
 
-# 4. FUNGSI LOGGING (SINKRON JAM WIB & ANTI DUPLIKAT)
+# 4. FUNGSI LOGGING
 def log_activity(email, action):
     log_file = "log_aktivitas.csv"
-    jam_wib = datetime.now() + timedelta(hours=7) # Penyesuaian ke Jam Laptop
+    jam_wib = datetime.now() + timedelta(hours=7)
     now = jam_wib.strftime("%Y-%m-%d %H:%M:%S")
-    
     new_data = pd.DataFrame([[now, email, action]], columns=["Waktu", "User", "Aktivitas"])
-    
     try:
-        if not os.path.isfile(log_file): 
-            new_data.to_csv(log_file, index=False)
-        else: 
-            new_data.to_csv(log_file, mode='a', header=False, index=False)
-    except:
-        pass
+        if not os.path.isfile(log_file): new_data.to_csv(log_file, index=False)
+        else: new_data.to_csv(log_file, mode='a', header=False, index=False)
+    except: pass
 
 # 5. INITIAL SESSION STATE
 if "auth" not in st.session_state: st.session_state.auth = False
@@ -90,8 +88,7 @@ if not st.session_state.auth:
             st.session_state.last_activity = time.time()
             log_activity(u_email, "Login")
             st.rerun()
-        else:
-            st.error("Email tidak terdaftar!")
+        else: st.error("Email tidak terdaftar!")
     st.stop()
 
 is_super_admin = st.session_state.email_user == "imanmuhamad9@gmail.com"
@@ -121,10 +118,10 @@ def load_db():
 
 db, db_stats, total_all = load_db()
 
-# 10. TABS (Log Admin hanya untuk Super Admin)
+# 10. TABS
 tabs = st.tabs(["🔍 Screening Nasabah", "📜 Log Admin"]) if is_super_admin else st.tabs(["🔍 Screening Nasabah"])
 
-# --- TAB PENCARIAN ---
+# --- TAB SCREENING ---
 with tabs[0]:
     st.markdown('<div class="search-container">', unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 2, 2])
@@ -138,9 +135,7 @@ with tabs[0]:
         if metode == "NIK" and len(query) != 16:
             st.warning("⚠️ NIK harus 16 digit!")
             valid = False
-            
         if valid:
-            # Catat Log secara Global (Diam-diam)
             search_id = f"search_{query}_{metode}"
             if "last_log" not in st.session_state or st.session_state.last_log != search_id:
                 log_activity(st.session_state.email_user, f"Mencari {metode}: {query}")
@@ -149,7 +144,6 @@ with tabs[0]:
             q_clean = " ".join(query.split()).lower()
             found = False
             results_all = []
-            
             for sn, df_data in db.items():
                 def find_match(row):
                     m_info, max_s = [], 0
@@ -164,7 +158,6 @@ with tabs[0]:
                 df_temp = df_data.copy()
                 df_temp[['_score', 'KET']] = df_temp.apply(find_match, axis=1)
                 match = df_temp[df_temp['_score'] > 0].copy()
-                
                 if not match.empty:
                     found = True
                     res = match.sort_values('_score', ascending=False).drop(columns=['_score'])
@@ -175,29 +168,46 @@ with tabs[0]:
             if found and is_super_admin:
                 buf = io.BytesIO()
                 with pd.ExcelWriter(buf) as w: pd.concat(results_all).to_excel(w, index=False)
-                st.download_button("📥 Download Hasil (Excel)", buf.getvalue(), "Hasil.xlsx", use_container_width=True)
-            
+                st.download_button("📥 Download Hasil (Excel)", buf.getvalue(), "Hasil_Screening.xlsx", use_container_width=True)
             if not found: st.error("Data tidak ditemukan.")
 
-# --- TAB ADMIN ---
+# --- TAB ADMIN (REVISI TOMBOL DI KOTAK BIRU) ---
 if is_super_admin:
     with tabs[1]:
-        col_st, col_rs = st.columns([3, 1])
-        with col_rs:
-            if st.button("🔥 Reset/Hapus Semua Log", use_container_width=True):
-                if os.path.exists("log_aktivitas.csv"):
-                    os.remove("log_aktivitas.csv")
-                    st.rerun()
-        
+        st.subheader("📊 Statistik & Manajemen Log")
         if db_stats:
-            cols = st.columns(len(db_stats) + 1)
+            n_cols = len(db_stats) + 1
+            cols = st.columns(n_cols)
             for i, (name, count) in enumerate(db_stats.items()):
                 cols[i].markdown(f'<div class="stat-card"><small>{name}</small><br><strong>{count:,}</strong></div>', unsafe_allow_html=True)
-            cols[-1].markdown(f'<div class="stat-card" style="background-color: #0068c9; color: white;"><small>TOTAL</small><br><strong>{total_all:,}</strong></div>', unsafe_allow_html=True)
+            
+            # --- KOTAK BIRU (TOTAL & MANAJEMEN) ---
+            with cols[-1]:
+                st.markdown(f'<div style="background-color: #0068c9; color: white; padding: 10px; border-radius: 8px; text-align: center;"><small>TOTAL DATA</small><br><strong style="font-size: 20px;">{total_all:,}</strong></div>', unsafe_allow_html=True)
+                st.write("") # Spasi
+                
+                # Cek jika file log ada untuk tombol Download & Reset
+                if os.path.exists("log_aktivitas.csv"):
+                    try:
+                        log_df_raw = pd.read_csv("log_aktivitas.csv")
+                        # Tombol Download Log
+                        buf_log = io.BytesIO()
+                        with pd.ExcelWriter(buf_log) as w: log_df_raw.to_excel(w, index=False)
+                        st.download_button("📥 Download Log", buf_log.getvalue(), "Log_Aktivitas.xlsx", use_container_width=True)
+                    except: pass
+                    
+                    # Tombol Reset
+                    if st.button("🔥 Reset/Hapus Log", use_container_width=True):
+                        os.remove("log_aktivitas.csv")
+                        st.rerun()
         
         st.divider()
         if os.path.exists("log_aktivitas.csv"):
             try:
-                log_df = pd.read_csv("log_aktivitas.csv").loc[:, ~pd.read_csv("log_aktivitas.csv").columns.duplicated()]
+                log_df = pd.read_csv("log_aktivitas.csv")
+                log_df = log_df.loc[:, ~log_df.columns.duplicated()]
+                st.write("📋 Riwayat Aktivitas:")
                 st.dataframe(log_df.iloc[::-1], use_container_width=True, hide_index=True)
-            except: st.error("Log error. Klik Reset Log.")
+            except: st.error("Format log bermasalah. Klik Reset di kotak biru.")
+        else:
+            st.info("Belum ada log aktivitas.")
