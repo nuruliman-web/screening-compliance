@@ -72,36 +72,24 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. LOGIN SYSTEM (DENGAN LIMIT 3X SALAH)
+# 2. LOGIN SYSTEM (PERMANENT BLOCK)
 # ==========================================
-if "auth" not in st.session_state: st.session_state.auth = False
-if "f_key" not in st.session_state: st.session_state.f_key = str(uuid.uuid4())
-if "show_pw_form" not in st.session_state: st.session_state.show_pw_form = False
-
-# Inisialisasi penghitung salah password
-if "login_attempts" not in st.session_state:
-    st.session_state.login_attempts = 0
-
-# Load Whitelist
 df_w = load_whitelist()
 
 if not st.session_state.auth:
     st.title("🔐 Login Screening System")
-    
-    # CEK: Jika sudah salah 3x, kunci form login
-    if st.session_state.login_attempts >= 3:
-        st.error("❌ Akun Terkunci! Anda telah salah memasukkan password sebanyak 3 kali.")
-        st.info("Silakan hubungi Admin untuk melakukan reset password agar Anda bisa mencoba kembali.")
-        
-        # Tombol logout/kembali untuk membersihkan email yang tertulis
-        if st.button("Kembali"):
-            st.session_state.login_attempts = 0
-            st.rerun()
-        st.stop() # Hentikan proses di sini, jangan tampilkan form password lagi
-
     email_in = st.text_input("Email:", key=f"e_{st.session_state.f_key}").lower().strip()
     
     if email_in in df_w['Email'].values:
+        # Ambil data user dari whitelist
+        user_info = df_w[df_w['Email'] == email_in].iloc[0]
+        
+        # CEK APAKAH STATUSNYA BLOCKED
+        if user_info['Status'] == 'Blocked':
+            st.error(f"❌ Akun {email_in} TERBLOKIR!")
+            st.info("Anda telah salah password lebih dari 3x. Silakan hubungi Admin untuk buka blokir.")
+            st.stop()
+
         db_u = load_user_db()
         user_row = db_u[db_u['Email'] == email_in]
         
@@ -113,22 +101,24 @@ if not st.session_state.auth:
                 st.success("Berhasil! Silakan Login."); time.sleep(1); st.rerun()
         else:
             pwd = st.text_input("Password:", type="password", key=f"p_{st.session_state.f_key}")
-            
             if st.button("Masuk"):
                 if hash_pass(pwd) == user_row.iloc[0]['PasswordHash']:
-                    # Berhasil Login: Reset hitungan salah jadi 0
-                    st.session_state.login_attempts = 0
+                    st.session_state.login_attempts = 0 # Reset temp counter
                     st.session_state.auth, st.session_state.user = True, email_in
                     log_activity(email_in, "Login")
                     st.rerun()
                 else:
-                    # Gagal Login: Tambah hitungan salah
+                    # Tambah counter salah (di session dulu)
                     st.session_state.login_attempts += 1
-                    sisa = 3 - st.session_state.login_attempts
-                    if sisa > 0:
-                        st.error(f"Password Salah! Sisa percobaan: {sisa} kali lagi.")
+                    
+                    if st.session_state.login_attempts >= 3:
+                        # UPDATE STATUS DI CSV JADI BLOCKED
+                        df_w.loc[df_w['Email'] == email_in, 'Status'] = 'Blocked'
+                        save_whitelist(df_w)
+                        log_activity(email_in, "AKUN TERBLOKIR (3x Salah PW)")
+                        st.rerun()
                     else:
-                        st.rerun() # Bakal masuk ke kondisi terkunci di atas
+                        st.error(f"Sandi Salah! Sisa percobaan: {3 - st.session_state.login_attempts}")
     elif email_in != "":
         st.error("Email tidak terdaftar!")
     st.stop()
