@@ -8,9 +8,7 @@ def clean_number_string(val):
     """Membersihkan NIK/Angka dari tanda petik, spasi, atau format scientific"""
     if pd.isna(val) or str(val).lower() == 'none' or str(val).strip() == '':
         return None
-    # Ubah ke string, hapus spasi, hapus petik satu di depan
     s = str(val).strip().replace("'", "")
-    # Jika format scientific (ada E+), ubah ke angka murni
     if 'e+' in s.lower():
         try:
             s = format(float(s), '.0f')
@@ -49,7 +47,20 @@ def run_bulk_screening():
         cols = df_nasabah.columns.tolist()
         col_target = st.selectbox("Pilih Kolom Nasabah yang ingin di-screening:", ["-- Pilih Kolom --"] + cols)
 
+        # Logika Slider Fuzzy
+        threshold = 100
+        is_fuzzy_mode = False
+
         if col_target != "-- Pilih Kolom --":
+            # Cek sampel data untuk menentukan apakah butuh slider fuzzy (untuk Nama/Teks)
+            sample_val = clean_number_string(df_nasabah[col_target].dropna().iloc[0]) if not df_nasabah[col_target].dropna().empty else ""
+            
+            # Jika isinya bukan angka murni (NIK) dan bukan format tanggal, maka tampilkan slider
+            if sample_val and not (str(sample_val).isdigit() and len(str(sample_val)) >= 10) and not re.match(r'\d{4}-\d{2}-\d{2}', str(sample_val)):
+                st.info("💡 Kolom terdeteksi sebagai Nama/Teks. Gunakan slider untuk mengatur sensitivitas pencarian.")
+                threshold = st.slider("Ambang Batas Kemiripan Nama (%)", 50, 100, 85)
+                is_fuzzy_mode = True
+
             if st.button("🚀 Jalankan Screening Otomatis"):
                 target_db = db_pemerintah[db_tujuan]
                 results = []
@@ -57,15 +68,10 @@ def run_bulk_screening():
                 progress_bar = st.progress(0)
                 status_text = st.empty()
                 
-                # Pre-processing Database Pemerintah (Hapus None agar tidak match kosong)
-                # Kita asumsikan data di DB juga dibersihkan
-                
                 for i, row_n in df_nasabah.iterrows():
-                    # Ambil nilai nasabah & bersihkan
                     raw_val = row_n[col_target]
                     val_nasabah = clean_number_string(raw_val)
                     
-                    # JIKA KOSONG, SKIP (Logika request: None tidak di-screening)
                     if val_nasabah is None:
                         continue
                     
@@ -81,32 +87,31 @@ def run_bulk_screening():
                         row_is_match = False
 
                         for col_db in target_db.columns:
-                            # Bersihkan nilai di DB
                             raw_db = row_p[col_db]
                             val_db = clean_number_string(raw_db)
                             
-                            if val_db is None: # Skip jika DB kosong
+                            if val_db is None:
                                 continue
                                 
                             val_db_lower = val_db.lower()
                             score = 0
                             found = False
 
-                            # LOGIKA SMART MATCHING:
-                            # 1. Jika isinya angka panjang (NIK), gunakan Exact Match
-                            if val_nasabah.isdigit() and len(val_nasabah) >= 10:
+                            # LOGIKA MATCHING
+                            # 1. NIK (Digit > 10) -> Exact
+                            if str(val_nasabah).isdigit() and len(str(val_nasabah)) >= 10:
                                 if val_nasabah == val_db:
                                     score, found = 100, True
                             
-                            # 2. Jika format Tanggal (YYYY-MM-DD), gunakan Exact Match
-                            elif re.match(r'\d{4}-\d{2}-\d{2}', val_nasabah):
+                            # 2. Tanggal (YYYY-MM-DD) -> Exact
+                            elif re.match(r'\d{4}-\d{2}-\d{2}', str(val_nasabah)):
                                 if val_nasabah == val_db:
                                     score, found = 100, True
                             
-                            # 3. Selain itu, gunakan Fuzzy Match (Untuk Nama)
+                            # 3. Nama/Teks -> Fuzzy (Sesuai Slider)
                             else:
                                 score = fuzz.token_sort_ratio(val_nasabah_lower, val_db_lower)
-                                if score >= 85: # Threshold default 85%
+                                if score >= threshold:
                                     found = True
                             
                             if found:
@@ -133,4 +138,4 @@ def run_bulk_screening():
                     csv = df_res.to_csv(index=False).encode('utf-8')
                     st.download_button("📥 Download Laporan Match (.csv)", csv, "Hasil_Bulk.csv", "text/csv")
                 else:
-                    st.success("✅ Tidak ditemukan data yang cocok (None diabaikan).")
+                    st.success("✅ Tidak ditemukan data yang cocok.")
