@@ -12,7 +12,7 @@ def run_kyc_dashboard():
     if 'db_kyc_v14' not in st.session_state:
         st.session_state.db_kyc_v14 = {}
 
-    st.markdown("<h2 style='text-align: center; color: #1E293B;'>📊 Monitoring KYC 2026</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #1E293B;'>📊 Monitoring Pengkinian Data Nasabah</h2>", unsafe_allow_html=True)
     
     # --- 3. FILTER UTAMA ---
     st.markdown("---")
