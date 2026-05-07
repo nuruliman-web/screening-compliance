@@ -33,8 +33,9 @@ def run_kyc_dashboard():
             
             if st.form_submit_button("Simpan Data"):
                 idx = st.session_state.db_realisasi.index[st.session_state.db_realisasi['Cabang'] == cabang_input][0]
+                # Pastikan angka disimpan sebagai integer murni
                 st.session_state.db_realisasi.at[idx, bulan_input] = int(jumlah_input)
-                st.success(f"Update Berhasil untuk {cabang_input}!")
+                st.success(f"Berhasil simpan data {cabang_input}!")
 
     # --- TAB DASHBOARD ---
     with tab_view:
@@ -45,54 +46,51 @@ def run_kyc_dashboard():
         idx_bulan = list_bulan.index(bulan_filter) + 1
         bulan_terpilih = list_bulan[:idx_bulan]
         
-        df_main['Dikinikan'] = st.session_state.db_realisasi[bulan_terpilih].sum(axis=1).astype(int)
-        df_main['Belum_Dikinikan'] = (df_main['Target_Tahunan'] - df_main['Dikinikan']).clip(lower=0).astype(int)
+        # Buat dataframe kerja agar tidak ganggu master data
+        df_work = df_main.copy()
         
-        # HITUNG PERSENTASE PER CABANG (Bandingkan ke Target masing-masing)
-        df_main['Persen_Sudah'] = (df_main['Dikinikan'] / df_main['Target_Tahunan'] * 100).round(1)
-        df_main['Persen_Belum'] = (df_main['Belum_Dikinikan'] / df_main['Target_Tahunan'] * 100).round(1)
-
-        # --- TOP METRICS (ALL DASHBOARD) ---
-        t_target = int(df_main['Target_Tahunan'].sum())
-        t_dikinikan = int(df_main['Dikinikan'].sum())
-        t_sisa = int(df_main['Belum_Dikinikan'].sum())
+        # Ambil total realisasi dari session state
+        df_work['Sudah'] = st.session_state.db_realisasi[bulan_terpilih].sum(axis=1).astype(int)
         
-        # Persentase All Dashboard (Total vs Total)
-        pct_all_sudah = (t_dikinikan / t_target * 100)
-        pct_all_belum = (t_sisa / t_target * 100)
+        # Hitung Belum (Target - Sudah)
+        df_work['Belum'] = (df_work['Target_Tahunan'] - df_work['Sudah']).clip(lower=0).astype(int)
+        
+        # HITUNG PERSENTASE (Sudah / Target) & (Belum / Target)
+        df_work['% Sudah'] = (df_work['Sudah'] / df_work['Target_Tahunan'] * 100).round(1)
+        df_work['% Belum'] = (df_work['Belum'] / df_work['Target_Tahunan'] * 100).round(1)
 
+        # --- TOP METRICS (TOTAL ALL) ---
+        t_target = int(df_work['Target_Tahunan'].sum())
+        t_sudah = int(df_work['Sudah'].sum())
+        t_belum = int(df_work['Belum'].sum())
+        
         m1, m2, m3 = st.columns(3)
-        m1.metric("🎯 Total Target Seluruhnya", f"{t_target}")
-        m2.metric("✅ Total Sudah Dikinikan", f"{t_dikinikan}", f"{pct_all_sudah:.1f}%")
-        m3.metric("⏳ Total Belum Dikinikan", f"{t_sisa}", f"{pct_all_belum:.1f}%", delta_color="inverse")
+        m1.metric("🎯 Total Target", f"{t_target}")
+        m2.metric("✅ Total Sudah", f"{t_sudah}", f"{(t_sudah/t_target*100):.1f}%")
+        m3.metric("⏳ Total Belum", f"{t_belum}", f"{(t_belum/t_target*100):.1f}%", delta_color="inverse")
 
         st.divider()
 
         # --- GRAFIK ---
-        st.markdown(f"**📊 Komparasi Progress s/d {bulan_filter}**")
-        chart_data = df_main.set_index('Cabang')[['Dikinikan', 'Belum_Dikinikan']]
+        st.markdown(f"**📊 Bar Chart Progress s/d {bulan_filter}**")
+        chart_data = df_work.set_index('Cabang')[['Sudah', 'Belum']]
         st.bar_chart(chart_data, color=["#2ecc71", "#e74c3c"])
 
-        # --- TABEL DETAIL ---
+        # --- TABEL DETAIL (URUTAN KOLOM DISESUAIKAN) ---
         st.markdown("**📋 Detail Monitoring Per Cabang**")
         
-        # Mapping nama kolom agar lebih rapi di tabel
-        df_final = df_main.rename(columns={
-            'Target_Tahunan': 'Target',
-            'Dikinikan': 'Sudah (Akun)',
-            'Belum_Dikinikan': 'Belum (Akun)',
-            'Persen_Sudah': '% Sudah',
-            'Persen_Belum': '% Belum'
-        })
+        # Urutan Kolom: Cabang, Target, Sudah, % Sudah, Belum, % Belum
+        df_final = df_work[['Cabang', 'Target_Tahunan', 'Sudah', '% Sudah', 'Belum', '% Belum']]
+        
+        def color_progress(val):
+            return 'color: #2ecc71; font-weight: bold' if val >= 100 else 'color: #e67e22; font-weight: bold' if val > 0 else 'color: #e74c3c'
 
-        def color_logic(val):
-            return 'color: #2ecc71; font-weight: bold' if val > 70 else 'color: #e67e22; font-weight: bold' if val > 30 else 'color: #e74c3c; font-weight: bold'
-
+        # Styling & Format Tampilan
         styled_df = df_final.style.format({
             '% Sudah': '{:.1f}%',
             '% Belum': '{:.1f}%'
-        }).map(color_logic, subset=['% Sudah'])
+        }).map(color_progress, subset=['% Sudah'])
         
         st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
-    st.caption(f"Update terakhir: {bulan_filter} 2026")
+    st.caption(f"Fokus Data Perorangan 2026 | Perhitungan s/d {bulan_filter}")
