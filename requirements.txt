@@ -3,4 +3,4 @@ pandas
 openpyxl
 thefuzz
 python-Levenshtein
-st-gsheets-connection==0.0.3
+st-gsheets-connection
