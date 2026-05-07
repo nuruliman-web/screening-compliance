@@ -8,6 +8,7 @@ import log_tab as admin_log
 import user_tab as admin_user
 import bulk_admin_tab as bulk_admin
 import kyc_dashboard_tab as kyc_dashboard
+import kegiatan_tracker as tracker  # <--- 1. TAMBAH IMPORT DISINI
 
 # ==========================================
 # 1. KONFIGURASI HALAMAN & CSS SAKTI
@@ -114,7 +115,6 @@ if not st.session_state.auth:
 # ==========================================
 # 3. HEADER & IDENTIFIKASI ROLE
 # ==========================================
-# Ambil role hanya setelah login sukses
 user_match = df_w[df_w['Email'] == st.session_state.user]
 user_role = user_match.iloc[0]['Role'] if not user_match.empty else "User"
 is_admin = (user_role == "Admin")
@@ -152,12 +152,14 @@ if st.session_state.show_pw_form:
 db, stats, total = screening.fetch_all_data()
 
 if is_admin:
-    t1, t2, t3, t4, t5 = st.tabs(["🔍 Screening Nasabah", "📊 Log Admin", "👥 User", "🚀 Screening Berkala", "📈 Pengkinian Data"])
+    # 2. TAMBAH TAB "📝 Lain-Lain" DI AKHIR
+    t1, t2, t3, t4, t5, t6 = st.tabs(["🔍 Screening Nasabah", "📊 Log Admin", "👥 User", "🚀 Screening Berkala", "📈 Pengkinian Data", "📝 Lain-Lain"])
     with t1: screening.run_pencarian(st.session_state.user, db, is_admin)
     with t2: admin_log.run_log_admin(stats, total)
     with t3: admin_user.run_user_management()
     with t4: bulk_admin.run_bulk_screening()
-    with t5: kyc_dashboard.run_kyc_dashboard() # <--- Panggil di sini
+    with t5: kyc_dashboard.run_kyc_dashboard()
+    with t6: tracker.run_kegiatan_tracker() # <--- Panggil fungsi log kegiatan
 else:
     t1 = st.tabs(["🔍 Pencarian"])
     with t1[0]: screening.run_pencarian(st.session_state.user, db, is_admin)
