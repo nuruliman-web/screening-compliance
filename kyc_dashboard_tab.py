@@ -19,7 +19,7 @@ def run_kyc_dashboard():
             for kat in ["Perorangan", "Korporasi"] } for thn in list_tahun
         }
 
-    st.markdown("<h1 style='text-align: center; color: #0F172A;'>📊 KYC Analytics Dashboard</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #0F172A;'>📊 PENGKINIAN DATA NASABAH</h1>", unsafe_allow_html=True)
     
     # --- 3. FILTER UTAMA ---
     with st.container(border=True):
