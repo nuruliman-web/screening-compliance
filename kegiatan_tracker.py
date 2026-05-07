@@ -8,6 +8,7 @@ def run_kegiatan_tracker():
     
     # 1. KONEKSI GSHEETS
     conn = st.connection("gsheets", type=GSheetsConnection)
+    st.write("Cek Koneksi GSheets:", conn)
     
     # 2. LOAD DATA DARI TAB 'Kegiatan_Log'
     # ttl=0 supaya data selalu update saat di-refresh
