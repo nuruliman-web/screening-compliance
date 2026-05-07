@@ -5,64 +5,69 @@ def run_kyc_dashboard():
     # Judul Rata Tengah
     st.markdown("<h3 style='text-align: center;'>📊 Dashboard Pengkinian Data Nasabah Perorangan 2026</h3>", unsafe_allow_html=True)
     
-    # 1. MASTER DATA TARGET (Kunci Utama)
+    # 1. MASTER DATA TARGET (Fixed & Locked)
     target_map = {
         'KPO': 182, 'Tangerang': 13, 'Depok': 30, 'Bekasi': 29, 'Kelapa Gading': 23,
         'Bogor': 5, 'Jambi': 80, 'Pekanbaru': 5, 'Pangkalan Kerinci': 21, 'Pontianak': 58, 'Siantan': 6
     }
     list_cabang = list(target_map.keys())
+    list_bulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
 
-    # 2. DATABASE REALISASI (Session State)
-    if 'db_realisasi' not in st.session_state:
-        # Buat tabel kosong awal
-        st.session_state.db_realisasi = {cbg: {m: 0 for m in ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']} for cbg in list_cabang}
+    # 2. INISIALISASI DATABASE BARU (Ganti Nama biar gak KeyError)
+    if 'db_kyc_fixed' not in st.session_state:
+        st.session_state.db_kyc_fixed = {
+            cbg: {m: 0 for m in list_bulan} for cbg in list_cabang
+        }
 
     tab_view, tab_input = st.tabs(["📈 Tampilan Dashboard", "✍️ Input Data"])
 
     # --- TAB INPUT DATA ---
     with tab_input:
-        st.info("Input jumlah nasabah yang sudah dikinikan di sini.")
-        with st.form("form_update"):
+        st.info("Input jumlah nasabah baru yang sudah dikinikan bulan ini.")
+        with st.form("form_update_v2"):
             c1, c2, c3 = st.columns(3)
-            bln = c1.selectbox("Pilih Bulan:", ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'])
+            bln = c1.selectbox("Pilih Bulan:", list_bulan)
             cbg = c2.selectbox("Pilih Cabang:", list_cabang)
             jml = c3.number_input("Jumlah Realisasi:", min_value=0, step=1)
             
             if st.form_submit_button("Simpan Data"):
-                st.session_state.db_realisasi[cbg][bln] = int(jml)
-                st.success(f"Data {cbg} untuk {bln} berhasil disimpan!")
+                # Simpan ke database baru
+                st.session_state.db_kyc_fixed[cbg][bln] = int(jml)
+                st.success(f"Berhasil! Data {cbg} bulan {bln} tersimpan.")
+        
+        if st.button("🗑️ Reset Semua Data"):
+            del st.session_state.db_kyc_fixed
+            st.rerun()
 
     # --- TAB VIEW DASHBOARD ---
     with tab_view:
-        list_bulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
         filter_bln = st.select_slider("Tampilkan progress s/d bulan:", options=list_bulan)
 
-        # 3. PROSES DATA (Logic Akurat)
+        # 3. PROSES DATA (Logic Capped 100% & No Shifting)
         idx_akhir = list_bulan.index(filter_bln) + 1
         bulan_terpilih = list_bulan[:idx_akhir]
         
         rows = []
         for cbg in list_cabang:
             target = target_map[cbg]
-            # Jumlahkan realisasi hanya sampai bulan yang difilter
-            sudah = sum(st.session_state.db_realisasi[cbg][m] for m in bulan_terpilih)
+            # Ambil data dari database baru
+            total_input = sum(st.session_state.db_kyc_fixed[cbg][m] for m in bulan_terpilih)
             
-            # Cek agar 'Sudah' tidak melebihi 'Target' (Standard Banking)
-            sudah_capped = min(sudah, target)
-            belum = max(0, target - sudah_capped)
+            # Capped 100% (KYC Standard)
+            sudah = min(total_input, target)
+            belum = max(0, target - sudah)
             
-            # Hitung Persen Bulat
-            p_sudah = int((sudah_capped / target) * 100) if target > 0 else 0
+            # Hitung Persen Bulat (Tanpa .0)
+            p_sudah = int((sudah / target) * 100) if target > 0 else 0
             p_belum = 100 - p_sudah
             
             rows.append({
                 'Cabang': cbg,
                 'Target': target,
-                'Sudah': sudah_capped,
+                'Sudah': sudah,
                 '% Sudah': f"{p_sudah}%",
                 'Belum': belum,
-                '% Belum': f"{p_belum}%",
-                '_p_val': p_sudah # buat sorting/grafik internal
+                '% Belum': f"{p_belum}%"
             })
         
         df_final = pd.DataFrame(rows)
@@ -80,18 +85,19 @@ def run_kyc_dashboard():
 
         st.divider()
 
-        # 5. TABEL RATA TENGAH & FONT ITEM
+        # 5. TABEL RATA TENGAH (CSS FIX)
         st.markdown("""
             <style>
+                /* Maksa text di dalam tabel biar ke tengah */
                 div[data-testid="stDataFrame"] td {text-align: center !important;}
                 div[data-testid="stDataFrame"] th {text-align: center !important;}
             </style>
         """, unsafe_allow_html=True)
 
-        st.markdown(f"<p style='text-align: center; font-weight: bold;'>Tabel Monitoring Progress s/d {filter_bln}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align: center; font-weight: bold;'>Tabel Progress s/d {filter_bln}</p>", unsafe_allow_html=True)
         
-        # Tampilkan tabel tanpa warna-warni font (Hitam Standar)
-        st.dataframe(df_final.drop(columns=['_p_val']), use_container_width=True, hide_index=True)
+        # Tabel bersih, font hitam, rata tengah
+        st.dataframe(df_final, use_container_width=True, hide_index=True)
 
         # 6. GRAFIK
         st.bar_chart(df_final.set_index('Cabang')[['Sudah', 'Belum']], color=["#2ecc71", "#e74c3c"])
