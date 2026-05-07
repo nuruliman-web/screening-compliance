@@ -16,21 +16,21 @@ def clean_number_string(val):
     return s
 
 def run_bulk_screening():
-    st.markdown("### 🚀 Bulk Screening Pro (Super Admin)")
+    st.markdown("### 🚀 Bulk Screening Blacklist Database")
     
     import screening_tab as sc
     db_pemerintah, stats, total = sc.fetch_all_data()
 
     if db_pemerintah is None:
-        st.error("Gagal memuat database pemerintah.")
+        st.error("Gagal memuat Blacklist Database.")
         return
 
     st.markdown("##### 1. Pilih Database Tujuan")
     list_sheet = list(db_pemerintah.keys())
-    db_tujuan = st.selectbox("Pilih Database:", list_sheet)
+    db_tujuan = st.selectbox("Pilih Blacklist Database:", list_sheet)
 
     st.markdown("##### 2. Upload & Mapping Kolom")
-    file_nasabah = st.file_uploader("Upload Excel Nasabah", type=['xlsx'])
+    file_nasabah = st.file_uploader("Upload Excel Database Nasabah", type=['xlsx'])
 
     if file_nasabah:
         df_nasabah = pd.read_excel(file_nasabah)
@@ -40,7 +40,7 @@ def run_bulk_screening():
                 df_nasabah[col] = df_nasabah[col].dt.strftime('%Y-%m-%d')
 
         cols = df_nasabah.columns.tolist()
-        col_target = st.selectbox("Pilih Kolom Nasabah:", ["-- Pilih Kolom --"] + cols)
+        col_target = st.selectbox("Pilih Kolom Data Nasabah:", ["-- Pilih Kolom --"] + cols)
 
         threshold = 100
         if col_target != "-- Pilih Kolom --":
@@ -53,7 +53,7 @@ def run_bulk_screening():
             if not is_nik and not is_tgl:
                 threshold = st.slider("Ambang Batas Kemiripan Nama (%)", 50, 100, 85)
 
-            if st.button("🚀 Jalankan Screening"):
+            if st.button("🚀 Jalankan Screening Blacklist Database"):
                 target_db = db_pemerintah[db_tujuan]
                 results = []
                 
@@ -113,7 +113,7 @@ def run_bulk_screening():
                     csv_data = df_res.to_csv(index=False, sep=';').encode('utf-8')
                     
                     st.download_button(
-                        label="📥 Download Hasil Screening (CSV)",
+                        label="📥 Download Hasil Screening Blacklist Database",
                         data=csv_data,
                         file_name="Hasil_Bulk_Screening.csv",
                         mime="text/csv"
