@@ -1,62 +1,83 @@
 import streamlit as st
 import pandas as pd
-import os
+from streamlit_gsheets import GSheetsConnection
 from datetime import datetime
 
-# Nama file database permanen
-DB_FILE = "data_kegiatan.csv"
-
-def load_data_permanen():
-    if os.path.exists(DB_FILE):
-        return pd.read_csv(DB_FILE, sep=";").to_dict('records')
-    return []
-
-def save_data_permanen(data_list):
-    df = pd.DataFrame(data_list)
-    df.to_csv(DB_FILE, index=False, sep=";")
-
 def run_kegiatan_tracker():
-    st.markdown("<h3 style='text-align: center;'>📝 Log Kegiatan (Auto-Save)</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center;'>📝 Log Kegiatan (Sync to GSheets)</h3>", unsafe_allow_html=True)
     
-    # Ambil data dari file saat pertama kali buka
-    if 'log_kegiatan' not in st.session_state:
-        st.session_state.log_kegiatan = load_data_permanen()
+    # 1. KONEKSI GSHEETS
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    
+    # 2. LOAD DATA DARI TAB 'Kegiatan_Log'
+    # ttl=0 supaya data selalu update saat di-refresh
+    try:
+        df_gsheet = conn.read(worksheet="Kegiatan_Log", ttl=0)
+        # Bersihkan data kosong jika ada
+        df_gsheet = df_gsheet.dropna(how='all')
+    except Exception:
+        df_gsheet = pd.DataFrame(columns=["Tgl Kegiatan", "Nama Kegiatan", "No Surat/Jumlah", "Tujuan Kegiatan", "Keterangan"])
 
+    # Simpan ke session state agar sinkron dengan UI
+    st.session_state.log_kegiatan = df_gsheet.to_dict('records')
+
+    # 3. FORM INPUT
     with st.expander("➕ Input Kegiatan Baru", expanded=True):
         with st.form("form_kegiatan", clear_on_submit=True):
             c1, c2 = st.columns(2)
             tgl = c1.date_input("Tanggal", datetime.now())
             nama = c2.text_input("Nama Kegiatan")
+            
             c3, c4 = st.columns(2)
             no_surat = c3.text_input("No Surat/Jumlah")
             tujuan = c4.text_input("Tujuan")
+            
             ket = st.text_area("Keterangan")
             
-            if st.form_submit_button("💾 Simpan Permanen"):
+            if st.form_submit_button("💾 Simpan Permanen ke GSheets"):
                 if nama:
-                    st.session_state.log_kegiatan.append({
+                    new_row = {
                         "Tgl Kegiatan": tgl.strftime("%d/%m/%Y"),
                         "Nama Kegiatan": nama,
                         "No Surat/Jumlah": no_surat,
                         "Tujuan Kegiatan": tujuan,
                         "Keterangan": ket
-                    })
-                    # LANGSUNG SIMPAN KE FILE
-                    save_data_permanen(st.session_state.log_kegiatan)
-                    st.success("Data tersimpan permanen di server!")
+                    }
+                    
+                    # Tambahkan ke data lama
+                    updated_df = pd.concat([df_gsheet, pd.DataFrame([new_row])], ignore_index=True)
+                    
+                    # KIRIM KE GSHEETS
+                    conn.update(worksheet="Kegiatan_Log", data=updated_df)
+                    
+                    st.success("Data berhasil tersimpan di Google Sheets!")
                     st.rerun()
+                else:
+                    st.warning("Nama kegiatan tidak boleh kosong!")
 
     st.divider()
 
+    # 4. TAMPILKAN DAN EDIT DATA
     if st.session_state.log_kegiatan:
-        df = pd.DataFrame(st.session_state.log_kegiatan)
-        df.insert(0, 'No', range(1, len(df) + 1))
+        df_display = pd.DataFrame(st.session_state.log_kegiatan)
         
-        edited_df = st.data_editor(df, use_container_width=True, hide_index=True, num_rows="fixed")
+        # Tambahkan nomor urut untuk tampilan
+        df_display.insert(0, 'No', range(1, len(df_display) + 1))
         
-        if st.button("💾 Update Perubahan Edit"):
-            st.session_state.log_kegiatan = edited_df.drop(columns=['No']).to_dict('records')
-            save_data_permanen(st.session_state.log_kegiatan) # Simpan perubahan edit
-            st.success("Perubahan berhasil diperbarui!")
+        st.markdown("### 📋 Riwayat Kegiatan")
+        edited_df = st.data_editor(
+            df_display, 
+            use_container_width=True, 
+            hide_index=True, 
+            num_rows="dynamic" # Bisa tambah/hapus baris langsung di tabel
+        )
+        
+        # Tombol Update jika ada perubahan di tabel (data_editor)
+        if st.button("💾 Simpan Perubahan Edit"):
+            # Buang kolom 'No' sebelum simpan
+            final_df = edited_df.drop(columns=['No'])
+            conn.update(worksheet="Kegiatan_Log", data=final_df)
+            st.success("Perubahan tabel berhasil disinkronkan!")
+            st.rerun()
     else:
-        st.info("Belum ada data tersimpan.")
+        st.info("Belum ada data di Google Sheets. Silakan input kegiatan baru.")
