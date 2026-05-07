@@ -111,16 +111,14 @@ def run_bulk_screening():
                 progress_bar.progress(1.0)
                 status_text.text("Selesai!")
 
-                # --- 4. DOWNLOAD CSV (OPTIMAL FOR EXCEL) ---
+                # --- 4. DOWNLOAD CSV NORMAL ---
                 if results:
                     df_res = pd.DataFrame(results)
                     st.warning(f"⚠️ Terdeteksi {len(df_res)} data match!")
                     st.dataframe(df_res)
                     
-                    # BIAR BISA DIBUKA EXCEL TANPA BERANTAKAN:
-                    # 1. Gunakan encoding 'utf-8-sig' (BOM)
-                    # 2. Gunakan separator koma atau semicolon (disini pakai koma standar)
-                    csv_data = df_res.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
+                    # CSV Standar Encoding UTF-8
+                    csv_data = df_res.to_csv(index=False).encode('utf-8')
                     
                     st.download_button(
                         label="📥 Download Hasil Screening (CSV)",
