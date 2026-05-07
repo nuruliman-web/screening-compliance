@@ -8,7 +8,7 @@ import log_tab as admin_log
 import user_tab as admin_user
 import bulk_admin_tab as bulk_admin
 import kyc_dashboard_tab as kyc_dashboard
-import kegiatan_tracker as tracker  # <--- 1. TAMBAH IMPORT DISINI
+import kegiatan_tracker as tracker  # <--- PASTIKAN NAMA FILE DI GITHUB: kegiatan_tracker.py
 
 # ==========================================
 # 1. KONFIGURASI HALAMAN & CSS SAKTI
@@ -61,7 +61,7 @@ if "show_pw_form" not in st.session_state:
     st.session_state.show_pw_form = False
 
 # ==========================================
-# 2. LOGIN SYSTEM (VERSI BERSIH)
+# 2. LOGIN SYSTEM
 # ==========================================
 df_w = load_whitelist()
 
@@ -71,14 +71,10 @@ if not st.session_state.auth:
     
     if email_in:
         user_match = df_w[df_w['Email'] == email_in]
-        
         if not user_match.empty:
             user_info = user_match.iloc[0]
-            
-            # Cek Blokir
             if user_info.get('Status') == 'Blocked':
                 st.error(f"❌ Akun {email_in} TERBLOKIR!")
-                st.info("Hubungi Admin untuk buka blokir.")
                 st.stop()
 
             db_u = load_user_db()
@@ -104,24 +100,21 @@ if not st.session_state.auth:
                         if st.session_state.login_attempts >= 3:
                             df_w.loc[df_w['Email'] == email_in, 'Status'] = 'Blocked'
                             save_whitelist(df_w)
-                            log_activity(email_in, "AKUN TERBLOKIR")
                             st.rerun()
                         else:
                             st.error(f"Sandi Salah! Sisa percobaan: {3 - st.session_state.login_attempts}")
         else:
-            st.error("Email tidak terdaftar di Whitelist!")
+            st.error("Email tidak terdaftar!")
     st.stop()
 
 # ==========================================
-# 3. HEADER & IDENTIFIKASI ROLE
+# 3. HEADER
 # ==========================================
 user_match = df_w[df_w['Email'] == st.session_state.user]
 user_role = user_match.iloc[0]['Role'] if not user_match.empty else "User"
 is_admin = (user_role == "Admin")
 
-# Layout Header
 col_user_area, col_title_area = st.columns([4, 6])
-
 with col_user_area:
     st.markdown(f'<div class="user-box">👤 {st.session_state.user} &nbsp; <span style="color:#0068c9;">[{user_role}]</span></div>', unsafe_allow_html=True)
     c_btn1, c_btn2, _ = st.columns([1.2, 1.5, 2])
@@ -136,9 +129,6 @@ with col_title_area:
 
 st.divider()
 
-# ==========================================
-# 4. PW CHANGE FORM
-# ==========================================
 if st.session_state.show_pw_form:
     c_p1, c_p2, c_p3 = st.columns([2, 2, 1], vertical_alignment="bottom")
     new_p = c_p2.text_input("Sandi Baru", type="password", key="change_p")
@@ -152,14 +142,14 @@ if st.session_state.show_pw_form:
 db, stats, total = screening.fetch_all_data()
 
 if is_admin:
-    # 2. TAMBAH TAB "📝 Lain-Lain" DI AKHIR
+    # DEFINISI TAB (Ada 6 Tab Sekarang)
     t1, t2, t3, t4, t5, t6 = st.tabs(["🔍 Screening Nasabah", "📊 Log Admin", "👥 User", "🚀 Screening Berkala", "📈 Pengkinian Data", "📝 Lain-Lain"])
     with t1: screening.run_pencarian(st.session_state.user, db, is_admin)
     with t2: admin_log.run_log_admin(stats, total)
     with t3: admin_user.run_user_management()
     with t4: bulk_admin.run_bulk_screening()
     with t5: kyc_dashboard.run_kyc_dashboard()
-    with t6: tracker.run_kegiatan_tracker() # <--- Panggil fungsi log kegiatan
+    with t6: tracker.run_kegiatan_tracker() # <--- Fungsi dari file kegiatan_tracker.py
 else:
     t1 = st.tabs(["🔍 Pencarian"])
-    with t1[0]: screening.run_pencarian(st.session_state.user, db, is_admin)
+    with t1[0]: screening_tab.run_pencarian(st.session_state.user, db, is_admin)
