@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import time
-from io import BytesIO
 
 def run_kyc_dashboard():
     # --- 1. DATA MASTER ---
@@ -9,13 +8,13 @@ def run_kyc_dashboard():
     list_bulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
     list_tahun = [2024, 2025, 2026, 2027, 2028]
 
-    # --- 2. DATABASE SESSION (V16) ---
-    if 'db_kyc_v16' not in st.session_state:
-        st.session_state.db_kyc_v16 = {}
+    # --- 2. DATABASE SESSION (V18) ---
+    if 'db_kyc_v18' not in st.session_state:
+        st.session_state.db_kyc_v18 = {}
 
     st.markdown("<h2 style='text-align: center; color: #1E293B;'>📊 Monitoring Pengkinian Data Nasabah</h2>", unsafe_allow_html=True)
     
-    # --- 3. FILTER UTAMA ---
+    # --- 3. FILTER UTAMA (TENGAH) ---
     st.markdown("---")
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -26,8 +25,9 @@ def run_kyc_dashboard():
         bln_v = st.selectbox("📆 s/d Bulan:", list_bulan, key="sync_bln")
     st.markdown("---")
 
-    if thn_v not in st.session_state.db_kyc_v16:
-        st.session_state.db_kyc_v16[thn_v] = {
+    # Inisialisasi Data Tahun & Kategori jika belum ada
+    if thn_v not in st.session_state.db_kyc_v18:
+        st.session_state.db_kyc_v18[thn_v] = {
             'Perorangan': {c: {'t': 0, 'r': {m: 0 for m in list_bulan}} for c in list_cabang},
             'Korporasi': {c: {'t': 0, 'r': {m: 0 for m in list_bulan}} for c in list_cabang}
         }
@@ -36,9 +36,9 @@ def run_kyc_dashboard():
         f"📈 Dashboard {kat_v}", "✍️ Input Progres Bulanan", "⚙️ Input Target Tahunan"
     ])
 
-    # --- TAB 1: VIEW DASHBOARD ---
+    # --- TAB 1: VIEW DASHBOARD & DOWNLOAD CSV ---
     with tab_view:
-        data_sumber = st.session_state.db_kyc_v16[thn_v][kat_v]
+        data_sumber = st.session_state.db_kyc_v18[thn_v][kat_v]
         idx_bln = list_bulan.index(bln_v) + 1
         range_bln = list_bulan[:idx_bln]
         
@@ -58,24 +58,21 @@ def run_kyc_dashboard():
             })
         
         df = pd.DataFrame(rows)
+        df_display = df[['Cabang', 'Target', 'Realisasi', '% Sudah', 'Sisa', '% Belum']]
 
-        # -- Bagian Download --
-        df_download = df[['Cabang', 'Target', 'Realisasi', '% Sudah', 'Sisa', '% Belum']].copy()
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df_download.to_excel(writer, index=False, sheet_name='Laporan_KYC')
-        processed_data = output.getvalue()
-
-        col_d1, col_d2 = st.columns([4, 1])
-        with col_d2:
+        # FITUR DOWNLOAD CSV (Lebih ringan & bebas error)
+        csv_data = df_display.to_csv(index=False).encode('utf-8')
+        
+        col_l, col_r = st.columns([4, 1])
+        with col_r:
             st.download_button(
-                label="📥 Download Excel",
-                data=processed_data,
-                file_name=f"Report_KYC_{kat_v}_{thn_v}_{bln_v}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                label="📥 Download CSV",
+                data=csv_data,
+                file_name=f"KYC_{kat_v}_{thn_v}_{bln_v}.csv",
+                mime="text/csv"
             )
 
-        # Grafik & Metrics
+        # Visual Dashboard
         st.markdown(f"<p style='text-align: center; font-weight: bold;'>📊 Progres {kat_v} {thn_v} s/d {bln_v}</p>", unsafe_allow_html=True)
         chart_df = df.set_index('Cabang')[['v_s', 'v_b']]
         chart_df.columns = ['Sudah', 'Belum']
@@ -85,55 +82,54 @@ def run_kyc_dashboard():
         t_target = df['Target'].sum()
         t_real = df['Realisasi'].sum()
         t_p_sudah = int(round((t_real / t_target) * 100)) if t_target > 0 else 0
-        m1.metric(f"🎯 Target {kat_v}", f"{t_target}")
-        m2.metric("✅ Pencapaian", f"{t_real}", f"{t_p_sudah}%")
+        m1.metric("🎯 Total Target", f"{t_target}")
+        m2.metric("✅ Realisasi", f"{t_real}", f"{t_p_sudah}%")
         m3.metric("⏳ Sisa", f"{t_target - t_real}", f"{100 - t_p_sudah}%", delta_color="inverse")
 
         st.divider()
         st.markdown("<style>div[data-testid='stDataFrame'] td {text-align: center !important;}</style>", unsafe_allow_html=True)
-        st.dataframe(df_download, use_container_width=True, hide_index=True)
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
 
-    # --- TAB 2: INPUT PROGRES (FIX 0 UPDATE) ---
+    # --- TAB 2: INPUT PROGRES (FIX REPLACE & 0) ---
     with tab_input_progres:
         st.subheader(f"✍️ Update Progres {kat_v}")
-        with st.form("form_real_v16", clear_on_submit=True):
-            col1, col2, col3 = st.columns(3)
-            in_bln = col1.selectbox("Bulan:", list_bulan)
-            in_cbg = col2.selectbox("Cabang:", list_cabang)
+        with st.form("form_progres_v18", clear_on_submit=True):
+            col_a, col_b, col_c = st.columns(3)
+            in_bln = col_a.selectbox("Bulan:", list_bulan)
+            in_cbg = col_b.selectbox("Cabang:", list_cabang)
             
-            old_val = st.session_state.db_kyc_v16[thn_v][kat_v][in_cbg]['r'][in_bln]
-            in_val = col3.number_input(f"Realisasi {in_bln}:", min_value=0, step=1, value=None if old_val == 0 else old_val, placeholder="Ketik angka...")
+            # Cek data lama
+            old_val = st.session_state.db_kyc_v18[thn_v][kat_v][in_cbg]['r'][in_bln]
+            in_val = col_c.number_input(f"Nilai {in_bln}:", min_value=0, step=1, 
+                                        value=None if old_val == 0 else old_val, 
+                                        placeholder="Ketik angka...")
             
             if st.form_submit_button("✅ Simpan Progres"):
-                # FIX: Cek None secara eksplisit agar angka 0 bisa disimpan
-                if in_val is not None:
-                    st.session_state.db_kyc_v16[thn_v][kat_v][in_cbg]['r'][in_bln] = int(in_val)
-                    st.success(f"Tersimpan! {in_cbg} bulan {in_bln} sekarang adalah {in_val}.")
-                    st.toast("Data Terupdate!", icon='✅')
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    # Jika user sengaja ingin input 0 pada data yang tadinya ada isinya
-                    st.session_state.db_kyc_v16[thn_v][kat_v][in_cbg]['r'][in_bln] = 0
-                    st.success(f"Tersimpan! {in_cbg} bulan {in_bln} diset ke 0.")
-                    st.rerun()
+                # Simpan 0 jika None, atau simpan angka barunya
+                val_to_save = int(in_val) if in_val is not None else 0
+                st.session_state.db_kyc_v18[thn_v][kat_v][in_cbg]['r'][in_bln] = val_to_save
+                
+                st.success(f"Data {in_cbg} bulan {in_bln} diperbarui menjadi {val_to_save}.")
+                st.toast("Data Terupdate!", icon='✅')
+                time.sleep(1)
+                st.rerun()
 
-    # --- TAB 3: INPUT TARGET (FIX 0 UPDATE) ---
+    # --- TAB 3: INPUT TARGET (FIX REPLACE & 0) ---
     with tab_input_target:
         st.subheader(f"⚙️ Setting Target {kat_v} - {thn_v}")
-        with st.form("form_target_v16"):
+        with st.form("form_target_v18"):
             tcols = st.columns(4)
             temp_targets = {}
             for i, cbg in enumerate(list_cabang):
-                cur_t = st.session_state.db_kyc_v16[thn_v][kat_v][cbg]['t']
+                cur_t = st.session_state.db_kyc_v18[thn_v][kat_v][cbg]['t']
                 val_disp = None if cur_t == 0 else cur_t
                 new_t = tcols[i % 4].number_input(f"Target {cbg}", min_value=0, value=val_disp, step=1, placeholder="0")
-                # Jika input kosong, anggap 0
-                temp_targets[cbg] = new_t if new_t is not None else 0
+                temp_targets[cbg] = int(new_t) if new_t is not None else 0
             
             if st.form_submit_button("💾 Simpan Semua Target"):
                 for cbg, val in temp_targets.items():
-                    st.session_state.db_kyc_v16[thn_v][kat_v][cbg]['t'] = val
-                st.success("Target Berhasil Diperbarui!")
+                    st.session_state.db_kyc_v18[thn_v][kat_v][cbg]['t'] = val
+                st.success("Target Berhasil Disimpan!")
+                st.toast("Target Saved!", icon='💾')
                 time.sleep(1)
                 st.rerun()
