@@ -6,6 +6,7 @@ from auth_utils import hash_pass, load_user_db, load_whitelist, save_whitelist, 
 import screening_tab as screening
 import log_tab as admin_log
 import user_tab as admin_user
+import bulk_admin_tab as bulk_admin
 
 # ==========================================
 # 1. KONFIGURASI HALAMAN & CSS SAKTI
