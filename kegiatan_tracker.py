@@ -7,7 +7,11 @@ def run_kegiatan_tracker():
     st.markdown("<h3 style='text-align: center;'>📝 Log Kegiatan (Sync to GSheets)</h3>", unsafe_allow_html=True)
     
     # 1. KONEKSI GSHEETS
-    conn = st.connection("gsheets", type=GSheetsConnection)
+    conn = st.connection(
+    "gsheets", 
+    type=GSheetsConnection, 
+    spreadsheet="https://docs.google.com/spreadsheets/d/1jAiB7RPcjkEOZB7WoUaxOn55W1p7J8Hmyb2GBLaED4U"
+)
     
     # 2. LOAD DATA DARI TAB 'Kegiatan_Log'
     try:
