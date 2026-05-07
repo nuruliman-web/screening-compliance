@@ -152,7 +152,7 @@ if st.session_state.show_pw_form:
 db, stats, total = screening.fetch_all_data()
 
 if is_admin:
-    t1, t2, t3, t4, t5 = st.tabs(["🔍 Pencarian", "📊 Log Admin", "👥 User", "🚀 Bulk Screening", "📈 Dashboard KYC"])
+    t1, t2, t3, t4, t5 = st.tabs(["🔍 Screening Nasabah", "📊 Log Admin", "👥 User", "🚀 Screening Berkala", "📈 Pengkinian Data"])
     with t1: screening.run_pencarian(st.session_state.user, db, is_admin)
     with t2: admin_log.run_log_admin(stats, total)
     with t3: admin_user.run_user_management()
