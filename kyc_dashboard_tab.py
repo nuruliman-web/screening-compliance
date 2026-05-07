@@ -2,88 +2,98 @@ import streamlit as st
 import pandas as pd
 
 def run_kyc_dashboard():
+    # Judul Rata Tengah
     st.markdown("<h3 style='text-align: center;'>📊 Dashboard Pengkinian Data Nasabah Perorangan 2026</h3>", unsafe_allow_html=True)
     
-    # 1. DATA TARGET TETAP
-    data_target = {
-        'Cabang': ['KPO', 'Tangerang', 'Depok', 'Bekasi', 'Kelapa Gading', 'Bogor', 'Jambi', 'Pekanbaru', 'Pangkalan Kerinci', 'Pontianak', 'Siantan'],
-        'Target': [182, 13, 30, 29, 23, 5, 80, 5, 21, 58, 6]
+    # 1. MASTER DATA TARGET (Kunci Utama)
+    target_map = {
+        'KPO': 182, 'Tangerang': 13, 'Depok': 30, 'Bekasi': 29, 'Kelapa Gading': 23,
+        'Bogor': 5, 'Jambi': 80, 'Pekanbaru': 5, 'Pangkalan Kerinci': 21, 'Pontianak': 58, 'Siantan': 6
     }
-    df_master = pd.DataFrame(data_target)
+    list_cabang = list(target_map.keys())
 
     # 2. DATABASE REALISASI (Session State)
     if 'db_realisasi' not in st.session_state:
-        st.session_state.db_realisasi = pd.DataFrame({
-            'Cabang': df_master['Cabang'],
-            'Januari': [0]*11, 'Februari': [0]*11, 'Maret': [0]*11, 'April': [0]*11,
-            'Mei': [0]*11, 'Juni': [0]*11, 'Juli': [0]*11, 'Agustus': [0]*11,
-            'September': [0]*11, 'Oktober': [0]*11, 'November': [0]*11, 'Desember': [0]*11
-        })
+        # Buat tabel kosong awal
+        st.session_state.db_realisasi = {cbg: {m: 0 for m in ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']} for cbg in list_cabang}
 
     tab_view, tab_input = st.tabs(["📈 Tampilan Dashboard", "✍️ Input Data"])
 
     # --- TAB INPUT DATA ---
     with tab_input:
+        st.info("Input jumlah nasabah yang sudah dikinikan di sini.")
         with st.form("form_update"):
             c1, c2, c3 = st.columns(3)
-            bln = c1.selectbox("Bulan:", ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'])
-            cbg = c2.selectbox("Cabang:", df_master['Cabang'])
-            jml = c3.number_input("Jumlah:", min_value=0, step=1)
-            if st.form_submit_button("Update Data"):
-                # Pastikan update berdasarkan nama Cabang yang benar
-                st.session_state.db_realisasi.loc[st.session_state.db_realisasi['Cabang'] == cbg, bln] = int(jml)
-                st.success(f"Data {cbg} bulan {bln} diperbarui!")
+            bln = c1.selectbox("Pilih Bulan:", ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'])
+            cbg = c2.selectbox("Pilih Cabang:", list_cabang)
+            jml = c3.number_input("Jumlah Realisasi:", min_value=0, step=1)
+            
+            if st.form_submit_button("Simpan Data"):
+                st.session_state.db_realisasi[cbg][bln] = int(jml)
+                st.success(f"Data {cbg} untuk {bln} berhasil disimpan!")
 
     # --- TAB VIEW DASHBOARD ---
     with tab_view:
         list_bulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
-        filter_bln = st.select_slider("Progress akumulatif s/d bulan:", options=list_bulan)
+        filter_bln = st.select_slider("Tampilkan progress s/d bulan:", options=list_bulan)
 
-        # Perhitungan Akumulasi
+        # 3. PROSES DATA (Logic Akurat)
         idx_akhir = list_bulan.index(filter_bln) + 1
         bulan_terpilih = list_bulan[:idx_akhir]
         
-        # Gabungkan data target dan realisasi dengan benar (Merge agar index aman)
-        df_real_sum = st.session_state.db_realisasi[['Cabang'] + bulan_terpilih].copy()
-        df_real_sum['Sudah'] = df_real_sum[bulan_terpilih].sum(axis=1)
+        rows = []
+        for cbg in list_cabang:
+            target = target_map[cbg]
+            # Jumlahkan realisasi hanya sampai bulan yang difilter
+            sudah = sum(st.session_state.db_realisasi[cbg][m] for m in bulan_terpilih)
+            
+            # Cek agar 'Sudah' tidak melebihi 'Target' (Standard Banking)
+            sudah_capped = min(sudah, target)
+            belum = max(0, target - sudah_capped)
+            
+            # Hitung Persen Bulat
+            p_sudah = int((sudah_capped / target) * 100) if target > 0 else 0
+            p_belum = 100 - p_sudah
+            
+            rows.append({
+                'Cabang': cbg,
+                'Target': target,
+                'Sudah': sudah_capped,
+                '% Sudah': f"{p_sudah}%",
+                'Belum': belum,
+                '% Belum': f"{p_belum}%",
+                '_p_val': p_sudah # buat sorting/grafik internal
+            })
         
-        df_final = pd.merge(df_master, df_real_sum[['Cabang', 'Sudah']], on='Cabang')
-        
-        # Logika Perhitungan Persen Cabang
-        df_final['Belum'] = (df_final['Target'] - df_final['Sudah']).clip(lower=0)
-        
-        # Format Persen tanpa desimal (langsung bulat)
-        df_final['% Sudah'] = ((df_final['Sudah'] / df_final['Target']) * 100).fillna(0).astype(int).astype(str) + "%"
-        df_final['% Belum'] = ((df_final['Belum'] / df_final['Target']) * 100).fillna(0).astype(int).astype(str) + "%"
+        df_final = pd.DataFrame(rows)
 
-        # Tampilan Metrics Atas
-        t_target = df_final['Target'].sum()
-        t_sudah = df_final['Sudah'].sum()
-        t_belum = df_final['Belum'].sum()
-        p_sudah = int((t_sudah / t_target) * 100) if t_target > 0 else 0
+        # 4. METRICS UTAMA (TOTAL)
+        total_t = sum(target_map.values())
+        total_s = df_final['Sudah'].sum()
+        total_b = total_t - total_s
+        total_p = int((total_s / total_t) * 100)
 
         m1, m2, m3 = st.columns(3)
-        m1.metric("🎯 Total Target", f"{t_target}")
-        m2.metric("✅ Total Sudah", f"{t_sudah}", f"{p_sudah}%")
-        m3.metric("⏳ Total Belum", f"{t_belum}", f"{100 - p_sudah}%", delta_color="inverse")
+        m1.metric("🎯 Total Target", f"{total_t}")
+        m2.metric("✅ Total Sudah", f"{total_s}", f"{total_p}%")
+        m3.metric("⏳ Total Belum", f"{total_b}", f"{100-total_p}%", delta_color="inverse")
 
         st.divider()
 
-        # URUTAN KOLOM & RATA TENGAH
-        # Urutan: Cabang, Target, Sudah, % Sudah, Belum, % Belum
-        df_tabel = df_final[['Cabang', 'Target', 'Sudah', '% Sudah', 'Belum', '% Belum']]
-        
-        # Gunakan CSS untuk Rata Tengah (Center Alignment)
+        # 5. TABEL RATA TENGAH & FONT ITEM
         st.markdown("""
             <style>
-                .stDataFrame td, .stDataFrame th {text-align: center !important;}
+                div[data-testid="stDataFrame"] td {text-align: center !important;}
+                div[data-testid="stDataFrame"] th {text-align: center !important;}
             </style>
         """, unsafe_allow_html=True)
 
         st.markdown(f"<p style='text-align: center; font-weight: bold;'>Tabel Monitoring Progress s/d {filter_bln}</p>", unsafe_allow_html=True)
         
-        # Menampilkan tabel dengan gaya standar (font hitam, rata tengah via CSS)
-        st.dataframe(df_tabel, use_container_width=True, hide_index=True)
+        # Tampilkan tabel tanpa warna-warni font (Hitam Standar)
+        st.dataframe(df_final.drop(columns=['_p_val']), use_container_width=True, hide_index=True)
 
-        # Grafik Progress
+        # 6. GRAFIK
         st.bar_chart(df_final.set_index('Cabang')[['Sudah', 'Belum']], color=["#2ecc71", "#e74c3c"])
+
+    st.caption(f"Update: 2026 | Mode: Akumulatif s/d {filter_bln}")
