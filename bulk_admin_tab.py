@@ -28,6 +28,13 @@ def run_bulk_screening():
 
     if file_nasabah:
         df_nasabah = pd.read_excel(file_nasabah)
+        
+        # --- FIX: Hapus Waktu di Kolom Tanggal (Jika ada) ---
+        for col in df_nasabah.columns:
+            if pd.api.types.is_datetime64_any_dtype(df_nasabah[col]):
+                df_nasabah[col] = df_nasabah[col].dt.strftime('%Y-%m-%d')
+        # --------------------------------------------------
+
         cols = df_nasabah.columns.tolist()
         col_target = st.selectbox(f"Pilih Kolom {mode} di File Excel Anda:", cols)
 
@@ -52,7 +59,7 @@ def run_bulk_screening():
                     status_text.text(f"Memproses {i+1} dari {len(df_nasabah)} nasabah...")
 
                 for _, row_p in target_db.iterrows():
-                    match_details = [] # Untuk nampung multiple match dalam satu row
+                    match_details = []
                     row_is_match = False
 
                     for col_db in target_db.columns:
@@ -69,32 +76,30 @@ def run_bulk_screening():
                             if score >= threshold:
                                 found_in_col = True
                         elif mode == "Tanggal Lahir":
-                            if val_nasabah in val_db:
+                            # Cek kemiripan string tanggal (misal 1990-01-01)
+                            if val_nasabah in val_db or val_db in val_nasabah:
                                 score, found_in_col = 100, True
                         
                         if found_in_col:
-                            # Format: Nama Kolom (XX%)
                             match_details.append(f"{col_db} ({score}%)")
                             row_is_match = True
                     
                     if row_is_match:
-                        # 1. Ambil semua data asli nasabah (Kiri)
                         res_entry = row_n.to_dict()
-                        
-                        # 2. Tambahkan Ket Match (Gabungan kolom & persentase)
                         res_entry["Ket Match"] = ", ".join(match_details)
                         
-                        # 3. Masukkan data database (Kanan)
                         for k, v in row_p.items():
+                            # Pastikan data dari DB juga bersih dari waktu jika berupa tanggal
+                            if isinstance(v, pd.Timestamp):
+                                v = v.strftime('%Y-%m-%d')
                             res_entry[f"DB_{k}"] = v
                         
                         results.append(res_entry)
-                        break # Pindah ke nasabah berikutnya setelah nemu row yang match
+                        break 
             
             progress_bar.progress(1.0)
             status_text.text("Screening Selesai!")
 
-            # 3. TAMPILKAN HASIL
             if results:
                 df_res = pd.DataFrame(results)
                 st.warning(f"⚠️ Terdeteksi {len(df_res)} data yang cocok!")
