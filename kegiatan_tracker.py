@@ -1,29 +1,38 @@
 import streamlit as st
 import pandas as pd
-import time
+import os
 from datetime import datetime
 
-def run_kegiatan_tracker():
-    st.markdown("<h3 style='text-align: center;'>📝 Log Kegiatan Unit AML</h3>", unsafe_allow_html=True)
-    
-    # 1. Database Session
-    if 'log_kegiatan' not in st.session_state:
-        st.session_state.log_kegiatan = []
+# Nama file database permanen
+DB_FILE = "data_kegiatan.csv"
 
-    # 2. Form Input
+def load_data_permanen():
+    if os.path.exists(DB_FILE):
+        return pd.read_csv(DB_FILE, sep=";").to_dict('records')
+    return []
+
+def save_data_permanen(data_list):
+    df = pd.DataFrame(data_list)
+    df.to_csv(DB_FILE, index=False, sep=";")
+
+def run_kegiatan_tracker():
+    st.markdown("<h3 style='text-align: center;'>📝 Log Kegiatan (Auto-Save)</h3>", unsafe_allow_html=True)
+    
+    # Ambil data dari file saat pertama kali buka
+    if 'log_kegiatan' not in st.session_state:
+        st.session_state.log_kegiatan = load_data_permanen()
+
     with st.expander("➕ Input Kegiatan Baru", expanded=True):
         with st.form("form_kegiatan", clear_on_submit=True):
             c1, c2 = st.columns(2)
-            tgl = c1.date_input("Tanggal Kegiatan", datetime.now())
-            nama = c2.text_input("Nama Kegiatan", placeholder="LTKT, Pelatihan, News, dsb")
-            
+            tgl = c1.date_input("Tanggal", datetime.now())
+            nama = c2.text_input("Nama Kegiatan")
             c3, c4 = st.columns(2)
-            no_surat = c3.text_input("No Surat / Jumlah Peserta")
-            tujuan = c4.text_input("Tujuan Kegiatan")
+            no_surat = c3.text_input("No Surat/Jumlah")
+            tujuan = c4.text_input("Tujuan")
+            ket = st.text_area("Keterangan")
             
-            ket = st.text_area("Keterangan Tambahan", placeholder="Masukkan catatan jika ada...")
-            
-            if st.form_submit_button("💾 Masukkan ke Daftar"):
+            if st.form_submit_button("💾 Simpan Permanen"):
                 if nama:
                     st.session_state.log_kegiatan.append({
                         "Tgl Kegiatan": tgl.strftime("%d/%m/%Y"),
@@ -32,44 +41,22 @@ def run_kegiatan_tracker():
                         "Tujuan Kegiatan": tujuan,
                         "Keterangan": ket
                     })
-                    st.toast("Kegiatan dicatat!")
-                    time.sleep(0.5)
+                    # LANGSUNG SIMPAN KE FILE
+                    save_data_permanen(st.session_state.log_kegiatan)
+                    st.success("Data tersimpan permanen di server!")
                     st.rerun()
-                else:
-                    st.error("Nama kegiatan wajib diisi!")
 
     st.divider()
 
-    # 3. Tabel Tracker (Edit Only)
-    st.markdown("### 📋 History Track")
     if st.session_state.log_kegiatan:
         df = pd.DataFrame(st.session_state.log_kegiatan)
         df.insert(0, 'No', range(1, len(df) + 1))
         
-        # --- PERBAIKAN DI SINI: Daftarkan Keterangan di column_config ---
-        edited_df = st.data_editor(
-            df,
-            use_container_width=True,
-            hide_index=True,
-            num_rows="fixed",
-            column_config={
-                "No": st.column_config.Column(disabled=True, width="small"),
-                "Tgl Kegiatan": st.column_config.TextColumn("Tanggal", width="small", alignment="center"),
-                "Nama Kegiatan": st.column_config.TextColumn("Kegiatan", width="medium"),
-                "No Surat/Jumlah": st.column_config.TextColumn("No Surat / Jumlah"),
-                "Tujuan Kegiatan": st.column_config.TextColumn("Tujuan"),
-                "Keterangan": st.column_config.TextColumn("Keterangan", width="large"), # <--- Sekarang muncul di tabel
-            }
-        )
+        edited_df = st.data_editor(df, use_container_width=True, hide_index=True, num_rows="fixed")
         
-        col_s, col_d = st.columns([4, 1])
-        if col_s.button("💾 Simpan Perubahan Edit", use_container_width=True):
+        if st.button("💾 Update Perubahan Edit"):
             st.session_state.log_kegiatan = edited_df.drop(columns=['No']).to_dict('records')
-            st.success("Perubahan disimpan!")
-            time.sleep(0.5)
-            st.rerun()
-            
-        csv = edited_df.to_csv(index=False, sep=";").encode('utf-8')
-        col_d.download_button("📥 CSV", csv, "Log_AML.csv", "text/csv", use_container_width=True)
+            save_data_permanen(st.session_state.log_kegiatan) # Simpan perubahan edit
+            st.success("Perubahan berhasil diperbarui!")
     else:
-        st.info("Belum ada data.")
+        st.info("Belum ada data tersimpan.")
