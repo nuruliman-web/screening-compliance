@@ -151,10 +151,12 @@ if st.session_state.show_pw_form:
 db, stats, total = screening.fetch_all_data()
 
 if is_admin:
-    t1, t2, t3 = st.tabs(["🔍 Pencarian", "📊 Log Admin", "👥 User"])
+    # Tambah tab "Bulk Screening" khusus Admin
+    t1, t2, t3, t4 = st.tabs(["🔍 Pencarian", "📊 Log Admin", "👥 User", "🚀 Bulk Screening"])
     with t1: screening.run_pencarian(st.session_state.user, db, is_admin)
     with t2: admin_log.run_log_admin(stats, total)
     with t3: admin_user.run_user_management()
+    with t4: bulk_admin.run_bulk_screening() # <--- Panggil modul baru di sini
 else:
     t1 = st.tabs(["🔍 Pencarian"])
     with t1[0]: screening.run_pencarian(st.session_state.user, db, is_admin)
