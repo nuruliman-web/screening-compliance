@@ -7,6 +7,7 @@ import screening_tab as screening
 import log_tab as admin_log
 import user_tab as admin_user
 import bulk_admin_tab as bulk_admin
+import kyc_dashboard_tab as kyc_dashboard
 
 # ==========================================
 # 1. KONFIGURASI HALAMAN & CSS SAKTI
