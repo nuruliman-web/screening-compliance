@@ -8,18 +8,23 @@ def run_kegiatan_tracker():
     
     # 1. KONEKSI GSHEETS
     conn = st.connection("gsheets", type=GSheetsConnection)
-    st.write("Cek Koneksi GSheets:", conn)
     
     # 2. LOAD DATA DARI TAB 'Kegiatan_Log'
-    # ttl=0 supaya data selalu update saat di-refresh
     try:
+        # Coba baca data (ttl=0 biar fresh)
         df_gsheet = conn.read(worksheet="Kegiatan_Log", ttl=0)
-        # Bersihkan data kosong jika ada
         df_gsheet = df_gsheet.dropna(how='all')
-    except Exception:
+        
+        # Jika berhasil baca tanpa error, tampilkan indikator sukses kecil
+        st.caption("✅ Terhubung ke Google Sheets")
+        
+    except Exception as e:
+        # Jika error (misal nama tab salah atau belum jadi Editor)
+        st.error(f"⚠️ Koneksi GSheets Bermasalah: {e}")
+        st.info("Pastikan Tab 'Kegiatan_Log' sudah ada dan izin GSheets sudah 'Editor'.")
         df_gsheet = pd.DataFrame(columns=["Tgl Kegiatan", "Nama Kegiatan", "No Surat/Jumlah", "Tujuan Kegiatan", "Keterangan"])
 
-    # Simpan ke session state agar sinkron dengan UI
+    # Simpan ke session state
     st.session_state.log_kegiatan = df_gsheet.to_dict('records')
 
     # 3. FORM INPUT
@@ -45,14 +50,16 @@ def run_kegiatan_tracker():
                         "Keterangan": ket
                     }
                     
-                    # Tambahkan ke data lama
+                    # Gabungkan data lama dengan baris baru
                     updated_df = pd.concat([df_gsheet, pd.DataFrame([new_row])], ignore_index=True)
                     
                     # KIRIM KE GSHEETS
-                    conn.update(worksheet="Kegiatan_Log", data=updated_df)
-                    
-                    st.success("Data berhasil tersimpan di Google Sheets!")
-                    st.rerun()
+                    try:
+                        conn.update(worksheet="Kegiatan_Log", data=updated_df)
+                        st.success("Data berhasil tersimpan di Google Sheets!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Gagal mengirim data: {e}")
                 else:
                     st.warning("Nama kegiatan tidak boleh kosong!")
 
@@ -62,7 +69,7 @@ def run_kegiatan_tracker():
     if st.session_state.log_kegiatan:
         df_display = pd.DataFrame(st.session_state.log_kegiatan)
         
-        # Tambahkan nomor urut untuk tampilan
+        # Tambahkan nomor urut
         df_display.insert(0, 'No', range(1, len(df_display) + 1))
         
         st.markdown("### 📋 Riwayat Kegiatan")
@@ -70,15 +77,16 @@ def run_kegiatan_tracker():
             df_display, 
             use_container_width=True, 
             hide_index=True, 
-            num_rows="dynamic" # Bisa tambah/hapus baris langsung di tabel
+            num_rows="dynamic"
         )
         
-        # Tombol Update jika ada perubahan di tabel (data_editor)
         if st.button("💾 Simpan Perubahan Edit"):
-            # Buang kolom 'No' sebelum simpan
-            final_df = edited_df.drop(columns=['No'])
-            conn.update(worksheet="Kegiatan_Log", data=final_df)
-            st.success("Perubahan tabel berhasil disinkronkan!")
-            st.rerun()
+            try:
+                final_df = edited_df.drop(columns=['No'])
+                conn.update(worksheet="Kegiatan_Log", data=final_df)
+                st.success("Perubahan tabel berhasil disinkronkan!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Gagal update: {e}")
     else:
-        st.info("Belum ada data di Google Sheets. Silakan input kegiatan baru.")
+        st.info("Belum ada data di Google Sheets.")
