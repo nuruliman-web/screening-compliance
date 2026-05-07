@@ -21,7 +21,6 @@ def run_kegiatan_tracker():
             no_surat = c3.text_input("No Surat / Jumlah Peserta")
             tujuan = c4.text_input("Tujuan Kegiatan")
             
-            # Tambahan Kolom Keterangan di Form
             ket = st.text_area("Keterangan Tambahan", placeholder="Masukkan catatan jika ada...")
             
             if st.form_submit_button("💾 Masukkan ke Daftar"):
@@ -31,7 +30,7 @@ def run_kegiatan_tracker():
                         "Nama Kegiatan": nama,
                         "No Surat/Jumlah": no_surat,
                         "Tujuan Kegiatan": tujuan,
-                        "Keterangan": ket  # <--- Simpan keterangan
+                        "Keterangan": ket
                     })
                     st.toast("Kegiatan dicatat!")
                     time.sleep(0.5)
@@ -47,29 +46,29 @@ def run_kegiatan_tracker():
         df = pd.DataFrame(st.session_state.log_kegiatan)
         df.insert(0, 'No', range(1, len(df) + 1))
         
-        # Konfigurasi Editor
+        # --- PERBAIKAN DI SINI: Daftarkan Keterangan di column_config ---
         edited_df = st.data_editor(
             df,
             use_container_width=True,
             hide_index=True,
-            num_rows="fixed", # Biar nggak bisa dihapus
+            num_rows="fixed",
             column_config={
                 "No": st.column_config.Column(disabled=True, width="small"),
-                "Tgl Kegiatan": st.column_config.TextColumn("Tanggal", width="small"),
+                "Tgl Kegiatan": st.column_config.TextColumn("Tanggal", width="small", alignment="center"),
                 "Nama Kegiatan": st.column_config.TextColumn("Kegiatan", width="medium"),
-                "Keterangan": st.column_config.TextColumn("Keterangan", width="large"),
+                "No Surat/Jumlah": st.column_config.TextColumn("No Surat / Jumlah"),
+                "Tujuan Kegiatan": st.column_config.TextColumn("Tujuan"),
+                "Keterangan": st.column_config.TextColumn("Keterangan", width="large"), # <--- Sekarang muncul di tabel
             }
         )
         
         col_s, col_d = st.columns([4, 1])
         if col_s.button("💾 Simpan Perubahan Edit", use_container_width=True):
-            # Simpan balik ke session tanpa kolom No
             st.session_state.log_kegiatan = edited_df.drop(columns=['No']).to_dict('records')
             st.success("Perubahan disimpan!")
             time.sleep(0.5)
             st.rerun()
             
-        # Download Report (Pemisah titik koma agar rapi di Excel)
         csv = edited_df.to_csv(index=False, sep=";").encode('utf-8')
         col_d.download_button("📥 CSV", csv, "Log_AML.csv", "text/csv", use_container_width=True)
     else:
