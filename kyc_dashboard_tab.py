@@ -9,9 +9,9 @@ def run_kyc_dashboard():
     list_tahun = [2024, 2025, 2026, 2027, 2028]
     risk_cats = ['High', 'Medium', 'Low']
 
-    # --- 2. DATABASE SESSION (V30) ---
-    if 'db_kyc_v30' not in st.session_state:
-        st.session_state.db_kyc_v30 = {
+    # --- 2. DATABASE SESSION (V31) ---
+    if 'db_kyc_v31' not in st.session_state:
+        st.session_state.db_kyc_v31 = {
             thn: { kat: { c: {
                 't': {r: 0 for r in risk_cats}, 
                 'r': {m: 0 for m in list_bulan}
@@ -19,28 +19,26 @@ def run_kyc_dashboard():
             for kat in ["Perorangan", "Korporasi"] } for thn in list_tahun
         }
 
-    # Header Kece
-    st.markdown("<h1 style='text-align: center; color: #0F172A;'>✨ KYC Track Master</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #64748B;'>Monitoring pengkinian data nasabah dengan gaya.</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #0F172A; font-family: sans-serif;'>📊 KYC Analytics Dashboard</h1>", unsafe_allow_html=True)
     
     # --- 3. FILTER UTAMA ---
     with st.container(border=True):
         f1, f2, f3 = st.columns(3)
-        with f1: thn_v = st.selectbox("📅 Tahun", list_tahun, index=2) 
-        with f2: kat_v = st.selectbox("📂 Kategori", ["Perorangan", "Korporasi"])
-        with f3: bln_v = st.selectbox("📆 Posisi Bulan", list_bulan, index=0)
+        with f1: thn_v = st.selectbox("📅 Pilih Tahun", list_tahun, index=2) 
+        with f2: kat_v = st.selectbox("📂 Pilih Kategori", ["Perorangan", "Korporasi"])
+        with f3: bln_v = st.selectbox("📆 Posisi Bulan s/d", list_bulan, index=0)
 
-    tab_v, tab_p, tab_t = st.tabs(["📊 Dashboard", "✏️ Update Progres", "🎯 Setup Target"])
+    tab_v, tab_p, tab_t = st.tabs(["📈 Dashboard Utama", "✍️ Update Progres", "⚙️ Setup Target Risk"])
 
     # --- TAB 1: VIEW DASHBOARD ---
     with tab_v:
-        db_ref = st.session_state.db_kyc_v30[thn_v][kat_v]
+        db_ref = st.session_state.db_kyc_v31[thn_v][kat_v]
         idx_pilihan = list_bulan.index(bln_v)
         
         rows = []
         for cbg in list_cabang:
             targets = db_ref[cbg]['t']
-            total_target = sum(targets.values())
+            total_t = sum(targets.values())
             
             # Logic Latest Status
             real_tampil = 0
@@ -50,78 +48,77 @@ def run_kyc_dashboard():
                     real_tampil = val
                     break
             
-            p_sudah = int(round((real_tampil / total_target) * 100)) if total_target > 0 else (100 if real_tampil > 0 else 0)
-            sisa = max(0, total_target - real_tampil)
+            p_sudah = int(round((real_tampil / total_t) * 100)) if total_t > 0 else (100 if real_tampil > 0 else 0)
+            sisa = max(0, total_t - real_tampil)
             p_sisa = 100 - p_sudah
             
             rows.append({
-                'Cabang': cbg, 'High': targets['High'], 'Medium': targets['Medium'], 'Low': targets['Low'],
-                'Target': total_target, 'Realisasi': real_tampil, 
-                '% Progres': f"{p_sudah}%", 'Sisa': sisa, '% Sisa': f"{p_sisa}%",
-                'v_s': real_tampil, 'v_b': sisa
+                'Cabang': cbg, 
+                'High': targets['High'], 'Medium': targets['Medium'], 'Low': targets['Low'],
+                'Total Target': total_t, 
+                'Realisasi': real_tampil, 
+                '% Progres': f"{p_sudah}%", 
+                'Sisa': sisa, 
+                '% Sisa': f"{p_sisa}%" # INI SUDAH DIPASTIKAN ADA
             })
         
         df = pd.DataFrame(rows)
         
-        # Metrics Clean
+        # Metrics
         m1, m2, m3 = st.columns(3)
-        tt, tr = df['Target'].sum(), df['Realisasi'].sum()
+        tt, tr = df['Total Target'].sum(), df['Realisasi'].sum()
         tp = int(round((tr/tt)*100)) if tt > 0 else 0
         m1.metric("🎯 Total Target", f"{tt:,}".replace(",", "."))
         m2.metric(f"✅ Realisasi {bln_v}", f"{tr:,}".replace(",", "."), f"{tp}%")
         m3.metric("⏳ Sisa Keseluruhan", f"{(tt-tr):,}".replace(",", "."), f"{100-tp}%", delta_color="inverse")
 
-        st.bar_chart(df.set_index('Cabang')[['v_s', 'v_b']].rename(columns={'v_s':'Selesai','v_b':'Sisa'}), color=["#6366F1", "#F87171"])
+        st.bar_chart(df.set_index('Cabang')[['Realisasi', 'Sisa']], color=["#4F46E5", "#EF4444"])
         
-        st.markdown("### 📋 Detail Data")
-        st.dataframe(df[['Cabang', 'High', 'Medium', 'Low', 'Target', 'Realisasi', '% Progres', 'Sisa', '% Sisa']], 
-                     use_container_width=True, hide_index=True)
+        st.markdown("### 📋 Tabel Rincian Data")
+        # Kolom % Sisa sekarang masuk ke tampilan
+        st.dataframe(df, use_container_width=True, hide_index=True)
 
     # --- TAB 2: UPDATE PROGRES ---
     with tab_p:
-        st.markdown("### ✏️ Input Progres Terbaru")
+        st.markdown("### ✍️ Input Realisasi Bulanan")
         with st.container(border=True):
             c1, c2 = st.columns(2)
             u_cbg = c1.selectbox("Pilih Cabang", list_cabang, key="up_cbg")
-            old_val = st.session_state.db_kyc_v30[thn_v][kat_v][u_cbg]['r'][bln_v]
-            u_val = c2.number_input(f"Total Nasabah Selesai di {bln_v}", min_value=0, value=None if old_val==0 else old_val)
+            old_val = st.session_state.db_kyc_v31[thn_v][kat_v][u_cbg]['r'][bln_v]
+            u_val = c2.number_input(f"Angka Realisasi s/d {bln_v}:", min_value=0, value=None if old_val==0 else old_val)
             
-            if st.button("🚀 Simpan Data Progres", use_container_width=True):
-                st.session_state.db_kyc_v30[thn_v][kat_v][u_cbg]['r'][bln_v] = int(u_val) if u_val is not None else 0
-                st.toast("Mantap! Data berhasil diupdate.", icon="🔥")
+            if st.button("💾 Simpan Progres", use_container_width=True):
+                st.session_state.db_kyc_v31[thn_v][kat_v][u_cbg]['r'][bln_v] = int(u_val) if u_val is not None else 0
+                st.toast("Data Disimpan!")
                 time.sleep(0.5)
                 st.rerun()
 
-    # --- TAB 3: TARGET PER RISK (DESIGN GEN-Z) ---
+    # --- TAB 3: TARGET PER RISK (CLEAN DESIGN) ---
     with tab_t:
-        st.markdown("### 🎯 Setup Target Tahunan")
-        st.info("Input target High, Medium, dan Low untuk masing-masing cabang. Total akan terhitung otomatis.")
+        st.markdown("### 🎯 Pengaturan Target Risiko")
+        st.write("Silakan isi target per kategori risiko untuk masing-masing cabang.")
         
-        with st.form("f_target_aesthetic"):
-            # Kita bagi 2 kolom besar untuk list cabang biar gak terlalu panjang ke bawah
-            main_col1, main_col2 = st.columns(2)
-            
-            for idx, cbg in enumerate(list_cabang):
-                # Pilih kolom kiri atau kanan
-                target_col = main_col1 if idx % 2 == 0 else main_col2
+        with st.form("form_target_modern"):
+            # Header Legend
+            l1, l2, l3, l4 = st.columns([2, 1, 1, 1])
+            l1.markdown("**Nama Cabang**")
+            l2.markdown("🔴 **High**")
+            l3.markdown("🟡 **Medium**")
+            l4.markdown("🟢 **Low**")
+            st.divider()
+
+            for cbg in list_cabang:
+                c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
+                c1.write(f"**{cbg}**")
+                curr = st.session_state.db_kyc_v31[thn_v][kat_v][cbg]['t']
                 
-                with target_col.container(border=True):
-                    st.markdown(f"📍 **{cbg}**")
-                    curr_t = st.session_state.db_kyc_v30[thn_v][kat_v][cbg]['t']
-                    
-                    # Input mungil berjajar
-                    i1, i2, i3 = st.columns(3)
-                    st.session_state.db_kyc_v30[thn_v][kat_v][cbg]['t']['High'] = i1.number_input(f"H-{cbg}", min_value=0, value=curr_t['High'], label_visibility="collapsed")
-                    st.session_state.db_kyc_v30[thn_v][kat_v][cbg]['t']['Medium'] = i2.number_input(f"M-{cbg}", min_value=0, value=curr_t['Medium'], label_visibility="collapsed")
-                    st.session_state.db_kyc_v30[thn_v][kat_v][cbg]['t']['Low'] = i3.number_input(f"L-{cbg}", min_value=0, value=curr_t['Low'], label_visibility="collapsed")
-                    
-                    # Label tipis di bawah input
-                    i1.caption("High")
-                    i2.caption("Med")
-                    i3.caption("Low")
+                # Input yang diletakkan sejajar dengan rapi
+                st.session_state.db_kyc_v31[thn_v][kat_v][cbg]['t']['High'] = c2.number_input(f"H_{cbg}", min_value=0, value=curr['High'], label_visibility="collapsed")
+                st.session_state.db_kyc_v31[thn_v][kat_v][cbg]['t']['Medium'] = c3.number_input(f"M_{cbg}", min_value=0, value=curr['Medium'], label_visibility="collapsed")
+                st.session_state.db_kyc_v31[thn_v][kat_v][cbg]['t']['Low'] = c4.number_input(f"L_{cbg}", min_value=0, value=curr['Low'], label_visibility="collapsed")
             
             st.markdown("<br>", unsafe_allow_html=True)
-            if st.form_submit_button("✨ Simpan Semua Target Tahun Ini", use_container_width=True):
-                st.success("Target Risk Berhasil Diperbarui!")
+            if st.form_submit_button("💾 Simpan Seluruh Target Tahunan", use_container_width=True):
+                st.success("Berhasil! Target tahunan telah diperbarui.")
                 time.sleep(0.5)
                 st.rerun()
