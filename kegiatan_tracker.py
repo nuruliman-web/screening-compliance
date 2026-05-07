@@ -12,7 +12,7 @@ def run_kegiatan_tracker():
     # 2. LOAD DATA DARI TAB 'Kegiatan_Log'
     try:
         # Coba baca data (ttl=0 biar fresh)
-        df_gsheet = conn.read(worksheet="Kegiatan_Log", ttl=0)
+        df_gsheet = conn.read(worksheet="Log_Baru", ttl=0)
         df_gsheet = df_gsheet.dropna(how='all')
         
         # Jika berhasil baca tanpa error, tampilkan indikator sukses kecil
@@ -21,7 +21,7 @@ def run_kegiatan_tracker():
     except Exception as e:
         # Jika error (misal nama tab salah atau belum jadi Editor)
         st.error(f"⚠️ Koneksi GSheets Bermasalah: {e}")
-        st.info("Pastikan Tab 'Kegiatan_Log' sudah ada dan izin GSheets sudah 'Editor'.")
+        st.info("Pastikan Tab 'Log_Baru' sudah ada dan izin GSheets sudah 'Editor'.")
         df_gsheet = pd.DataFrame(columns=["Tgl Kegiatan", "Nama Kegiatan", "No Surat/Jumlah", "Tujuan Kegiatan", "Keterangan"])
 
     # Simpan ke session state
@@ -55,7 +55,7 @@ def run_kegiatan_tracker():
                     
                     # KIRIM KE GSHEETS
                     try:
-                        conn.update(worksheet="Kegiatan_Log", data=updated_df)
+                        conn.update(worksheet="Log_Baru", data=updated_df)
                         st.success("Data berhasil tersimpan di Google Sheets!")
                         st.rerun()
                     except Exception as e:
@@ -83,7 +83,7 @@ def run_kegiatan_tracker():
         if st.button("💾 Simpan Perubahan Edit"):
             try:
                 final_df = edited_df.drop(columns=['No'])
-                conn.update(worksheet="Kegiatan_Log", data=final_df)
+                conn.update(worksheet="Log_Baru", data=final_df)
                 st.success("Perubahan tabel berhasil disinkronkan!")
                 st.rerun()
             except Exception as e:
