@@ -9,19 +9,23 @@ def hash_pass(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
 def load_user_db():
-    """Memuat database user dan mendaftarkan akun admin secara paksa via kode"""
+    """Memuat database user dan mendaftarkan akun kamu otomatis"""
     admin_email = "imanmuhamad9@gmail.com"
-    admin_pass_raw = "1111" # Password yang kamu minta
+    admin_pass_raw = "1111" 
     
     if os.path.exists(USER_DB_FILE):
-        df = pd.read_csv(USER_DB_FILE)
+        try:
+            df = pd.read_csv(USER_DB_FILE)
+        except:
+            df = pd.DataFrame(columns=["Email", "Password", "Role", "Status"])
     else:
         df = pd.DataFrame(columns=["Email", "Password", "Role", "Status"])
 
-    # Normalisasi email agar tidak ada duplikat karena spasi/huruf besar
-    df['Email'] = df['Email'].astype(str).str.lower().strip()
+    # PERBAIKAN ERROR: Tambahkan .str sebelum .strip()
+    if not df.empty:
+        df['Email'] = df['Email'].astype(str).str.lower().str.strip()
 
-    # LOGIKA SUNTIK AKUN (Daftarin otomatis via kode)
+    # LOGIKA SUNTIK AKUN KAMU
     if admin_email not in df['Email'].values:
         new_admin = pd.DataFrame([{
             "Email": admin_email,
