@@ -6,14 +6,14 @@ from auth_utils import load_user_db, USER_DB_FILE
 def login_screen():
     st.title("🔐 Login Screening System")
     
-    # Ambil data dari fungsi load yang sudah diperbaiki
+    # Memuat database secara aman
     df_users = load_user_db()
 
     email_input = st.text_input("Email:").lower().strip()
     
     if st.button("Masuk"):
         if email_input:
-            # Bersihkan data email di database agar sinkron
+            # Standarisasi pencarian email
             df_users['Email'] = df_users['Email'].astype(str).str.lower().str.strip()
             
             if email_input in df_users['Email'].values:
@@ -32,10 +32,9 @@ def login_screen():
         else:
             st.warning("Masukkan email.")
 
-    # TOMBOL RESET OTOMATIS (Jika masih blank putih)
+    # Menu reset jika masih ada masalah data lama
     with st.expander("🛠️ Menu Darurat"):
-        if st.button("🔥 Bersihkan & Reset Database"):
+        if st.button("🔥 Reset Database"):
             if os.path.exists(USER_DB_FILE): os.remove(USER_DB_FILE)
             if os.path.exists("whitelist.csv"): os.remove("whitelist.csv")
-            st.success("Database dibersihkan. Silakan Refresh (F5).")
             st.rerun()
