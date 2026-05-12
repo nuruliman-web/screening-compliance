@@ -1,9 +1,10 @@
 import streamlit as st
 import pandas as pd
 import os
-from auth_utils import load_user_db, USER_DB_FILE
+import hashlib
+from auth_utils import load_user_db, USER_DB_FILE, hash_pass
 
-# Import file lain (pastikan file-file ini ada di folder yang sama)
+# Import file modul lain
 import screening_tab as sc
 import bulk_admin_tab as bat
 import kyc_dashboard_tab as kyc
@@ -11,41 +12,51 @@ import kegiatan_tracker as kt
 import user_tab as ut
 import log_tab as lt
 
-# KUNCI FULLSCREEN: Harus dipanggil paling atas!
+# KONFIGURASI LAYAR (Fullscreen/Wide)
 st.set_page_config(page_title="Screening System", layout="wide")
 
 def login_screen():
-    # Tampilan judul dan form asli
     st.title("🔐 Login Screening System")
     
-    df_users = load_user_db()
-
+    # Input Form
     email_input = st.text_input("Email:").lower().strip()
+    pass_input = st.text_input("Password:", type="password") # Input password disembunyikan
     
     if st.button("Masuk"):
-        if email_input:
+        if email_input and pass_input:
+            df_users = load_user_db()
+            
+            # Normalisasi data email di DB
             df_users['Email'] = df_users['Email'].astype(str).str.lower().str.strip()
             
             if email_input in df_users['Email'].values:
                 user_data = df_users[df_users['Email'] == email_input].iloc[0]
                 
+                # 1. Cek Status Blokir
                 if str(user_data.get('Status', 'Active')) == 'Blocked':
-                    st.error("🚫 Akun Anda diblokir.")
+                    st.error("🚫 Akun Anda diblokir. Hubungi Admin.")
+                
+                # 2. Logika Cek Password (DITAMBAHKAN KEMBALI)
                 else:
-                    st.session_state['logged_in'] = True
-                    st.session_state['user'] = email_input
-                    st.session_state['role'] = user_data.get('Role', 'User')
-                    st.success("Berhasil Login!")
-                    st.rerun()
+                    hashed_input = hash_pass(pass_input)
+                    # Pastikan kolom password di CSV namanya 'Password'
+                    password_di_db = str(user_data.get('Password', ''))
+                    
+                    if hashed_input == password_di_db:
+                        st.session_state['logged_in'] = True
+                        st.session_state['user'] = email_input
+                        st.session_state['role'] = user_data.get('Role', 'User')
+                        st.success("Berhasil Login!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Password salah!")
             else:
                 st.error("❌ Email tidak terdaftar!")
         else:
-            st.warning("Masukkan email.")
-
-    # MENU DARURAT SUDAH DIHAPUS DARI SINI
+            st.warning("Silakan masukkan Email dan Password.")
 
 def main_interface():
-    # HEADER LOGOUT (Fullscreen, di atas)
+    # Header Info & Logout
     c1, c2 = st.columns([10, 1])
     c1.markdown(f"👤 **User:** {st.session_state['user']} | 🏷️ **Role:** {st.session_state['role']}")
     if c2.button("🚪 Logout"):
@@ -54,10 +65,10 @@ def main_interface():
         
     st.divider()
 
-    # LOAD DATA DATABASE SEKALI UNTUK SEMUA TAB
+    # Load data database (API/Sheets)
     db_p, stats, total = sc.fetch_all_data()
 
-    # MENGGUNAKAN TABS MENDATAR AGAR TETAP FULLSCREEN (TIDAK ADA SIDEBAR)
+    # Tampilan Menu Tab (Tetap Fullscreen)
     if st.session_state['role'] == "Admin":
         t1, t2, t3, t4, t5, t6 = st.tabs([
             "🔍 Single Screening", "🚀 Bulk Screening", "📊 KYC Dashboard", 
@@ -78,7 +89,6 @@ def main_interface():
         with t3: kyc.run_kyc_dashboard()
         with t4: kt.run_kegiatan_tracker()
 
-# TRIGGER UTAMA UNTUK MENJALANKAN APLIKASI
 def main():
     if 'logged_in' not in st.session_state:
         st.session_state['logged_in'] = False
