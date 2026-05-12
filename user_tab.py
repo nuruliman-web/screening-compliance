@@ -1,24 +1,29 @@
 import streamlit as st
 import pandas as pd
-from streamlit_gsheets import GSheetsConnection
+import os
 
 def run_user_management():
-    st.markdown("### 👥 Manajemen Pengguna (Sync to GSheets)")
+    st.markdown("### 👥 Manajemen Pengguna (Local Storage)")
     
-    # 1. KONEKSI GSHEETS
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    
-    # 2. LOAD DATA USER DARI TAB 'User_DB'
-    try:
-        df_users = conn.read(worksheet="User_DB", ttl=0)
-        # Jika sheet kosong, buat dataframe template
-        if df_users.empty:
+    # --- 1. SETUP PENYIMPANAN LOKAL ---
+    # Menggunakan file yang sama dengan sistem login agar sinkron
+    USER_DB_FILE = "users_db.csv"
+
+    # --- 2. LOAD DATA USER ---
+    if os.path.exists(USER_DB_FILE):
+        try:
+            df_users = pd.read_csv(USER_DB_FILE)
+            # Pastikan kolom yang dibutuhkan ada
+            for col in ['Email', 'Password', 'Role', 'Status']:
+                if col not in df_users.columns:
+                    df_users[col] = "" if col != 'Status' else 'Active'
+        except:
             df_users = pd.DataFrame(columns=['Email', 'Password', 'Role', 'Status'])
-    except:
+    else:
         df_users = pd.DataFrame(columns=['Email', 'Password', 'Role', 'Status'])
 
-    # 3. CONTAINER TAMBAH USER BARU (WHITELIST)
-    with st.expander("➕ Tambah Akses User Baru", expanded=True):
+    # --- 3. CONTAINER TAMBAH USER BARU ---
+    with st.expander("➕ Tambah Akses User Baru (Whitelist)", expanded=True):
         c1, c2, c3 = st.columns([2, 1, 1], vertical_alignment="bottom")
         new_email = c1.text_input("Email User:", placeholder="contoh: budi@gmail.com")
         new_role = c2.radio("Peran Akun:", ["User", "Admin"], horizontal=True)
@@ -27,18 +32,19 @@ def run_user_management():
             if new_email and "@" in new_email:
                 email_clean = new_email.lower().strip()
                 if email_clean not in df_users['Email'].values:
-                    # Tambah baris baru (Password kosong karena belum registrasi)
+                    # Tambah baris baru
                     new_row = pd.DataFrame([{
                         "Email": email_clean, 
-                        "Password": "", 
+                        "Password": "", # Kosong karena harus registrasi dulu
                         "Role": new_role, 
                         "Status": "Active"
                     }])
                     df_save = pd.concat([df_users, new_row], ignore_index=True)
                     
-                    # Update ke GSheets
-                    conn.update(worksheet="User_DB", data=df_save)
-                    st.success(f"✅ {email_clean} berhasil ditambahkan ke database.")
+                    # Simpan ke CSV Lokal
+                    df_save.to_csv(USER_DB_FILE, index=False)
+                    
+                    st.success(f"✅ {email_clean} berhasil ditambahkan.")
                     st.rerun()
                 else:
                     st.warning("⚠️ Email sudah terdaftar.")
@@ -47,7 +53,7 @@ def run_user_management():
 
     st.divider()
 
-    # 4. DAFTAR USER & KONTROL
+    # --- 4. DAFTAR USER & KONTROL ---
     st.markdown("#### 📋 Daftar Pengguna Terdaftar")
     
     if not df_users.empty:
@@ -58,15 +64,17 @@ def run_user_management():
                 email = row['Email']
                 u_role = row['Role']
                 u_status = row['Status']
-                is_registered = row['Password'] != "" # Jika password isi, berarti sudah daftar
+                
+                # Cek apakah user sudah set password (registrasi)
+                # handle jika Password bernilai NaN
+                is_registered = pd.notnull(row['Password']) and str(row['Password']).strip() != ""
 
                 col_mail.write(f"**{email}**")
                 
-                # Badge Role
-                role_color = "blue" if u_role == "Admin" else "gray"
-                col_role.markdown(f"<{role_color}>{u_role.upper()}</{role_color}>", unsafe_allow_html=True)
+                # Menampilkan Role
+                col_role.code(u_role.upper())
                 
-                # Badge Status
+                # Status Badge
                 if u_status == 'Blocked':
                     col_stat.error("🔴 BLOCKED")
                 elif is_registered:
@@ -74,15 +82,15 @@ def run_user_management():
                 else:
                     col_stat.warning("🟡 PENDING")
 
-                # Kontrol Tombol
-                if email != st.session_state.get('user'): # Jangan hapus diri sendiri
-                    if col_act.button("🔄 Reset/Hapus", key=f"del_{email}"):
-                        # Hapus user dari dataframe
+                # Tombol Hapus (Jangan hapus diri sendiri)
+                current_session_user = st.session_state.get('user', '')
+                if email != current_session_user:
+                    if col_act.button("🗑️ Hapus Akses", key=f"del_{email}", use_container_width=True):
                         df_final = df_users[df_users['Email'] != email]
-                        conn.update(worksheet="User_DB", data=df_final)
+                        df_final.to_csv(USER_DB_FILE, index=False)
                         st.success(f"Akses {email} telah dihapus!")
                         st.rerun()
                 else:
-                    col_act.write("(Anda)")
+                    col_act.write("*(Akun Anda)*")
     else:
-        st.info("Belum ada user yang didaftarkan.")
+        st.info("Belum ada user dalam database lokal.")
