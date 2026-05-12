@@ -5,7 +5,6 @@ from auth_utils import load_user_db, USER_DB_FILE
 
 def run_user_management():
     st.markdown("### 👥 Manajemen Pengguna")
-    
     df_users = load_user_db()
 
     with st.expander("➕ Tambah Akses User Baru", expanded=True):
@@ -18,7 +17,7 @@ def run_user_management():
                 if new_email not in df_users['Email'].astype(str).str.lower().str.strip().tolist():
                     new_row = pd.DataFrame([{"Email": new_email, "Password": "", "Role": new_role, "Status": "Active"}])
                     df_save = pd.concat([df_users, new_row], ignore_index=True)
-                    df_save.to_csv(USER_DB_FILE, index=False) # Simpan ke users_db.csv
+                    df_save.to_csv(USER_DB_FILE, index=False)
                     st.success(f"✅ {new_email} terdaftar!")
                     st.rerun()
                 else:
