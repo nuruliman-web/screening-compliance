@@ -6,19 +6,20 @@ from auth_utils import load_user_db, USER_DB_FILE
 def login_screen():
     st.title("🔐 Login Screening System")
     
-    df_users = load_user_db() #
+    # Ambil data dari fungsi load yang sudah diperbaiki
+    df_users = load_user_db()
 
-    email_input = st.text_input("Email:").lower().strip() # 
+    email_input = st.text_input("Email:").lower().strip()
     
     if st.button("Masuk"):
         if email_input:
-            # Standarisasi kolom email untuk pencarian
-            df_users['Email'] = df_users['Email'].astype(str).str.lower().str.strip() # 
+            # Bersihkan data email di database agar sinkron
+            df_users['Email'] = df_users['Email'].astype(str).str.lower().str.strip()
             
             if email_input in df_users['Email'].values:
                 user_data = df_users[df_users['Email'] == email_input].iloc[0]
                 
-                if str(user_data['Status']) == 'Blocked':
+                if str(user_data.get('Status', 'Active')) == 'Blocked':
                     st.error("🚫 Akun Anda diblokir.")
                 else:
                     st.session_state['logged_in'] = True
@@ -27,17 +28,14 @@ def login_screen():
                     st.success("Berhasil Login!")
                     st.rerun()
             else:
-                st.error("❌ Email tidak terdaftar!") [cite: 1]
+                st.error("❌ Email tidak terdaftar!")
         else:
             st.warning("Masukkan email.")
 
-    # --- TOMBOL HAPUS OTOMATIS (Gunakan jika data bermasalah) ---
-    with st.expander("🛠️ Menu Darurat (Hapus Database Lama)"):
-        st.warning("Gunakan ini jika email tetap tidak terdaftar setelah didaftarkan.")
-        if st.button("🔥 Reset & Hapus Semua Database"):
-            files_to_delete = ["users_db.csv", "whitelist.csv"]
-            for f in files_to_delete:
-                if os.path.exists(f):
-                    os.remove(f)
-            st.success("Database lama berhasil dihapus! Silakan refresh halaman.")
+    # TOMBOL RESET OTOMATIS (Jika masih blank putih)
+    with st.expander("🛠️ Menu Darurat"):
+        if st.button("🔥 Bersihkan & Reset Database"):
+            if os.path.exists(USER_DB_FILE): os.remove(USER_DB_FILE)
+            if os.path.exists("whitelist.csv"): os.remove("whitelist.csv")
+            st.success("Database dibersihkan. Silakan Refresh (F5).")
             st.rerun()
