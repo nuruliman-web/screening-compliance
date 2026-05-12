@@ -1,11 +1,11 @@
 import streamlit as st
 import pandas as pd
-from streamlit_gsheets import GSheetsConnection
 import time
+import os
 
 def run_kyc_dashboard():
-    # --- 1. KONEKSI GSHEETS ---
-    conn = st.connection("gsheets", type=GSheetsConnection)
+    # --- 1. SETUP PENYIMPANAN LOKAL ---
+    LOCAL_DB_FILE = "database_kyc_lokal.csv"
 
     # --- 2. DATA MASTER ---
     list_cabang = ['KPO', 'Tangerang', 'Depok', 'Bekasi', 'Kelapa Gading', 'Bogor', 'Jambi', 'Pekanbaru', 'Pangkalan Kerinci', 'Pontianak', 'Siantan']
@@ -13,31 +13,29 @@ def run_kyc_dashboard():
     list_tahun = [2024, 2025, 2026, 2027, 2028]
     risk_cats = ['High', 'Medium', 'Low']
 
-    # --- 3. FUNGSI SYNC GSHEETS ---
-    def load_from_gsheets():
+    # --- 3. FUNGSI SYNC LOKAL (Ganti GSheets) ---
+    def load_from_local():
+        if not os.path.exists(LOCAL_DB_FILE):
+            return None
         try:
-            # Baca Tab KYC_Data (ttl=0 agar data selalu fresh)
-            df = conn.read(worksheet="KYC_Data", ttl=0)
-            if df.empty: return None
-            
-            # Rekonstruksi data dari Tabel ke Dictionary (V37)
+            df = pd.read_csv(LOCAL_DB_FILE)
+            # Rekonstruksi data ke Dictionary
             new_db = {thn: {kat: {c: {'t': {r: 0 for r in risk_cats}, 'r': {m: 0 for m in list_bulan}} 
                       for c in list_cabang} for kat in ["Perorangan", "Korporasi"]} for thn in list_tahun}
             
             for _, row in df.iterrows():
-                thn, kat, cbg = str(row['Tahun']), row['Kategori'], row['Cabang']
-                # Load Target
-                new_db[int(thn)][kat][cbg]['t'] = {
-                    'High': int(row['T_High']), 'Medium': int(row['T_Med']), 'Low': int(row['T_Low'])
-                }
-                # Load Realisasi Bulanan
-                for bln in list_bulan:
-                    new_db[int(thn)][kat][cbg]['r'][bln] = int(row[bln])
+                thn, kat, cbg = int(row['Tahun']), row['Kategori'], row['Cabang']
+                if thn in new_db:
+                    new_db[thn][kat][cbg]['t'] = {
+                        'High': int(row['T_High']), 'Medium': int(row['T_Med']), 'Low': int(row['T_Low'])
+                    }
+                    for bln in list_bulan:
+                        new_db[thn][kat][cbg]['r'][bln] = int(row[bln])
             return new_db
-        except Exception as e:
+        except:
             return None
 
-    def save_to_gsheets(db):
+    def save_to_local(db):
         rows = []
         for thn in list_tahun:
             for kat in ["Perorangan", "Korporasi"]:
@@ -47,20 +45,18 @@ def run_kyc_dashboard():
                         "Tahun": thn, "Kategori": kat, "Cabang": cbg,
                         "T_High": data['t']['High'], "T_Med": data['t']['Medium'], "T_Low": data['t']['Low']
                     }
-                    # Gabungkan dengan data realisasi bulanan
                     row.update(data['r'])
                     rows.append(row)
-        
         df_save = pd.DataFrame(rows)
-        conn.update(worksheet="KYC_Data", data=df_save)
+        df_save.to_csv(LOCAL_DB_FILE, index=False)
 
     # --- 4. INISIALISASI SESSION STATE ---
     if 'db_kyc_v37' not in st.session_state:
-        data_gsheet = load_from_gsheets()
-        if data_gsheet:
-            st.session_state.db_kyc_v37 = data_gsheet
+        data_lokal = load_from_local()
+        if data_lokal:
+            st.session_state.db_kyc_v37 = data_lokal
         else:
-            # Template Default jika GSheet kosong
+            # Template Default
             st.session_state.db_kyc_v37 = {
                 thn: { kat: { c: {
                     't': {r: 0 for r in risk_cats}, 
@@ -69,7 +65,7 @@ def run_kyc_dashboard():
                 for kat in ["Perorangan", "Korporasi"] } for thn in list_tahun
             }
 
-    st.markdown("<h1 style='text-align: center; color: #0F172A;'>📊 PENGKINIAN DATA NASABAH</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #0F172A;'>📊 PENGKINIAN DATA NASABAH (LOCAL)</h1>", unsafe_allow_html=True)
     
     # --- 5. FILTER UTAMA ---
     with st.container(border=True):
@@ -103,7 +99,6 @@ def run_kyc_dashboard():
             })
         
         df = pd.DataFrame(rows)
-        # (Bagian Metric & Bar Chart tetap sama seperti kode lama kamu)
         m1, m2, m3 = st.columns(3)
         tt, tr = df['Total Target'].sum(), df['Realisasi'].sum()
         tp = int(round((tr/tt)*100)) if tt > 0 else 0
@@ -112,6 +107,10 @@ def run_kyc_dashboard():
         m3.metric("⏳ Sisa", f"{(tt-tr):,}".replace(",", "."), f"{100-tp}%", delta_color="inverse")
         st.bar_chart(df.set_index('Cabang')[['Realisasi', 'Sisa']], color=["#4F46E5", "#EF4444"])
         st.dataframe(df, use_container_width=True, hide_index=True)
+
+        # Tambahkan tombol download database
+        csv_db = df.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Download Summary Laporan (CSV)", csv_db, "Summary_KYC.csv", "text/csv")
 
     # --- TAB 2: UPDATE PROGRES ---
     with tab_p:
@@ -123,8 +122,8 @@ def run_kyc_dashboard():
             u_val = c2.number_input(f"Total Selesai {bln_v}:", min_value=0, value=None if old_val==0 else old_val)
             if st.button("💾 Simpan Progres", use_container_width=True):
                 st.session_state.db_kyc_v37[thn_v][kat_v][u_cbg]['r'][bln_v] = int(u_val) if u_val is not None else 0
-                save_to_gsheets(st.session_state.db_kyc_v37) # <--- AUTO-SAVE KE GSHEETS
-                st.success("Berhasil Sinkron ke GSheets!")
+                save_to_local(st.session_state.db_kyc_v37) # <--- SAVE LOKAL
+                st.success("Berhasil Simpan ke Database Lokal!")
                 time.sleep(0.5)
                 st.rerun()
 
@@ -149,7 +148,7 @@ def run_kyc_dashboard():
                 st.session_state.db_kyc_v37[thn_v][kat_v][c]['t']['High'] = int(row['High']) if pd.notnull(row['High']) else 0
                 st.session_state.db_kyc_v37[thn_v][kat_v][c]['t']['Medium'] = int(row['Medium']) if pd.notnull(row['Medium']) else 0
                 st.session_state.db_kyc_v37[thn_v][kat_v][c]['t']['Low'] = int(row['Low']) if pd.notnull(row['Low']) else 0
-            save_to_gsheets(st.session_state.db_kyc_v37) # <--- AUTO-SAVE KE GSHEETS
-            st.success("Target Permanen Tersimpan!")
+            save_to_local(st.session_state.db_kyc_v37) # <--- SAVE LOKAL
+            st.success("Target Berhasil Diperbarui!")
             time.sleep(0.5)
             st.rerun()
