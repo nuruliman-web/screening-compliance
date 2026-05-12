@@ -11,19 +11,20 @@ def load_user_db():
     if os.path.exists(file_path):
         try:
             df = pd.read_csv(file_path)
+            # Membersihkan spasi pada nama kolom jika ada
             df.columns = df.columns.str.strip()
             return df
-        except Exception as e:
+        except Exception:
             return pd.DataFrame(columns=['Email', 'Password', 'Role', 'Status'])
     else:
-        # Membuat file default jika belum ada
-        df_default = pd.DataFrame(columns=['Email', 'Password', 'Role', 'Status'])
-        return df_default
+        # Kembalikan dataframe kosong jika file tidak ada
+        return pd.DataFrame(columns=['Email', 'Password', 'Role', 'Status'])
 
-# FUNGSI INI HARUS ADA UNTUK MEMPERBAIKI ERROR
 def log_activity(user, activity, detail):
-    """Mencatat aktivitas user ke dalam log (opsional)"""
-    # Jika Anda punya file log_kegiatan.csv, kode ini akan menyimpannya
+    """
+    Fungsi ini wajib ada agar screening_tab.py tidak Error (ImportError).
+    Tugasnya mencatat setiap aktivitas pencarian ke log_kegiatan.csv.
+    """
     log_file = 'log_kegiatan.csv'
     new_log = {
         'Timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -31,14 +32,12 @@ def log_activity(user, activity, detail):
         'Activity': activity,
         'Detail': detail
     }
-    
     try:
         if os.path.exists(log_file):
             df_log = pd.read_csv(log_file)
             df_log = pd.concat([df_log, pd.DataFrame([new_log])], ignore_index=True)
         else:
             df_log = pd.DataFrame([new_log])
-        
         df_log.to_csv(log_file, index=False)
-    except:
-        pass # Mengabaikan error jika gagal menulis log agar aplikasi tetap jalan
+    except Exception:
+        pass
