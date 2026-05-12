@@ -5,27 +5,23 @@ import hashlib
 USER_DB_FILE = "users_db.csv"
 
 def hash_pass(password):
-    """Mengubah password menjadi kode hash SHA256"""
+    """Hashing SHA256 agar password aman"""
     return hashlib.sha256(str.encode(str(password))).hexdigest()
 
 def load_user_db():
-    """Memuat database dan suntik akun otomatis"""
+    """Memuat database lokal dan memastikan akun abang terdaftar"""
     admin_email = "imanmuhamad9@gmail.com"
     admin_pass_raw = "1111" 
     
     if os.path.exists(USER_DB_FILE):
-        try:
-            df = pd.read_csv(USER_DB_FILE)
-        except:
-            df = pd.DataFrame(columns=["Email", "Password", "Role", "Status"])
+        df = pd.read_csv(USER_DB_FILE)
     else:
         df = pd.DataFrame(columns=["Email", "Password", "Role", "Status"])
 
-    # Normalisasi data
-    if not df.empty:
-        df['Email'] = df['Email'].astype(str).str.lower().str.strip()
+    # Normalisasi Data
+    df['Email'] = df['Email'].astype(str).str.lower().str.strip()
 
-    # SUNTIK AKUN JIKA BELUM ADA
+    # Pastikan akun abang ada di CSV
     if admin_email not in df['Email'].values:
         new_admin = pd.DataFrame([{
             "Email": admin_email,
@@ -35,7 +31,7 @@ def load_user_db():
         }])
         df = pd.concat([df, new_admin], ignore_index=True)
         df.to_csv(USER_DB_FILE, index=False)
-        
+    
     return df
 
 def log_activity(user, activity):
