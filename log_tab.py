@@ -1,14 +1,15 @@
 import streamlit as st
 import pandas as pd
-from streamlit_gsheets import GSheetsConnection
 import io
+import os
 
 def run_log_admin(stats, total):
-    # 1. KONEKSI GSHEETS
-    conn = st.connection("gsheets", type=GSheetsConnection)
+    # --- 1. SETUP PENYIMPANAN LOKAL ---
+    LOG_FILE_LOKAL = "admin_activity_log.csv"
     
     st.markdown("### 📊 Statistik Database")
-    # (Bagian UI Statistik tetap sama menggunakan variabel stats dan total yang dikirim)
+    
+    # UI Statistik (Tetap sama, menggunakan data dari parameter stats & total)
     cols = st.columns(len(stats) + 1)
     for i, (name, val) in enumerate(stats.items()):
         with cols[i]:
@@ -18,32 +19,48 @@ def run_log_admin(stats, total):
 
     st.divider()
 
-    # 2. BAGIAN LOG AKTIVITAS (GSHEETS)
-    st.markdown("### 🕒 Riwayat Aktivitas User (Sync to GSheets)")
+    # --- 2. BAGIAN LOG AKTIVITAS (LOKAL CSV) ---
+    st.markdown("### 🕒 Riwayat Aktivitas User")
     
-    try:
-        # Baca riwayat dari GSheets
-        log_df = conn.read(worksheet="Admin_Log", ttl=0)
-    except:
+    # Fungsi untuk memuat data dari file lokal
+    if os.path.exists(LOG_FILE_LOKAL):
+        try:
+            log_df = pd.read_csv(LOG_FILE_LOKAL)
+        except:
+            log_df = pd.DataFrame(columns=["Timestamp", "User", "Aksi", "Keterangan"])
+    else:
+        # Jika file belum ada, buat DataFrame kosong
         log_df = pd.DataFrame(columns=["Timestamp", "User", "Aksi", "Keterangan"])
 
     if not log_df.empty:
-        # Tombol Aksi
+        # Layout tombol download
         c1, c2 = st.columns([4, 1])
         
-        # Download Log (Excel)
+        # Download Log dalam format Excel (.xlsx)
         output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             log_df.to_excel(writer, index=False, sheet_name='Log_Aktivitas')
         
         c2.download_button(
             label="📥 Download Log",
             data=output.getvalue(),
-            file_name="Riwayat_Aktivitas_GSheets.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            file_name="Riwayat_Aktivitas_Admin.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
         )
         
-        # Tampilkan Tabel (Urutan terbaru di atas)
-        st.dataframe(log_df.iloc[::-1], use_container_width=True, hide_index=True)
+        # Tampilkan Tabel (Urutan terbaru di atas menggunakan iloc[::-1])
+        st.dataframe(
+            log_df.sort_values(by="Timestamp", ascending=False), 
+            use_container_width=True, 
+            hide_index=True
+        )
     else:
-        st.info("Belum ada riwayat aktivitas di Google Sheets.")
+        st.info("Belum ada riwayat aktivitas yang tercatat di database lokal.")
+
+    # --- 3. FITUR TAMBAHAN: CLEAR LOG (Opsional) ---
+    if not log_df.empty:
+        if st.button("🗑️ Kosongkan Riwayat Log"):
+            os.remove(LOG_FILE_LOKAL)
+            st.success("Log telah dibersihkan!")
+            st.rerun()
