@@ -38,7 +38,7 @@ def run_log_admin(stats, total):
         
         # Download Log dalam format Excel (.xlsx)
         output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
             log_df.to_excel(writer, index=False, sheet_name='Log_Aktivitas')
         
         c2.download_button(
