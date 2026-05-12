@@ -10,28 +10,24 @@ import kegiatan_tracker as kt
 import user_tab as ut
 import log_tab as lt
 
-# KONFIGURASI LAYAR
 st.set_page_config(page_title="Screening System", layout="wide", initial_sidebar_state="collapsed")
 
 def main_interface():
-    # Menetapkan Identitas Default karena login ditiadakan
+    # Identitas Default
     if 'user' not in st.session_state:
-        st.session_state['user'] = "Administrator"
+        st.session_state['user'] = "Admin_System"
     if 'role' not in st.session_state:
         st.session_state['role'] = "Admin"
 
-    # Header Atas
+    # Header
     c1, c2 = st.columns([10, 2])
-    c1.markdown(f"👤 **Mode:** Akses Langsung | 🏷️ **Otoritas:** {st.session_state['role']}")
-    
-    # Tombol Reset Aplikasi (Jika diperlukan refresh total)
-    if c2.button("🔄 Reset Aplikasi", use_container_width=True):
-        st.session_state.clear()
+    c1.markdown(f"👤 **Mode:** Direct Access | 🏷️ **Role:** {st.session_state['role']}")
+    if c2.button("🔄 Refresh App", use_container_width=True):
         st.rerun()
     
     st.divider()
     
-    # Load data utama dari modul screening
+    # Load Data Utama
     db_p, stats, total = sc.fetch_all_data()
 
     # Navigasi Tab
@@ -41,12 +37,8 @@ def main_interface():
     with tabs[1]: bat.run_bulk_screening()
     with tabs[2]: kyc.run_kyc_dashboard()
     with tabs[3]: kt.run_kegiatan_tracker()
-    with tabs[4]: ut.run_user_management() # Menampilkan daftar user
+    with tabs[4]: ut.run_user_management() # Tab User dengan menu tambah
     with tabs[5]: lt.run_log_admin(stats, total)
 
-def main():
-    # Langsung jalankan antarmuka utama
-    main_interface()
-
 if __name__ == "__main__":
-    main()
+    main_interface()
