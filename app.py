@@ -14,17 +14,15 @@ import log_tab as lt
 st.set_page_config(page_title="Screening System", layout="wide", initial_sidebar_state="collapsed")
 
 def main_interface():
-    # Karena login dihapus, kita set default user & role di sini
+    # Inisialisasi session state jika belum ada karena login dihapus
     if 'user' not in st.session_state:
-        st.session_state['user'] = "Guest/Admin"
+        st.session_state['user'] = "Admin_User"
     if 'role' not in st.session_state:
-        st.session_state['role'] = "Admin" # Set ke Admin agar semua tab muncul
+        st.session_state['role'] = "Admin"
 
-    # Header
+    # Header & Tombol Reset
     c1, c2 = st.columns([10, 2])
     c1.markdown(f"👤 **User:** {st.session_state['user']} | 🏷️ **Role:** {st.session_state['role']}")
-    
-    # Tombol Reset Session (Pengganti Logout)
     if c2.button("🔄 Reset Session", use_container_width=True):
         st.session_state.clear()
         st.rerun()
@@ -41,7 +39,7 @@ def main_interface():
         with tabs[1]: bat.run_bulk_screening()
         with tabs[2]: kyc.run_kyc_dashboard()
         with tabs[3]: kt.run_kegiatan_tracker()
-        with tabs[4]: ut.run_user_management()
+        with tabs[4]: ut.run_user_management() # Memanggil tab user
         with tabs[5]: lt.run_log_admin(stats, total)
     else:
         tabs = st.tabs(["🔍 Single", "🚀 Bulk", "📊 KYC Dashboard", "📝 Log Kegiatan"])
@@ -51,7 +49,7 @@ def main_interface():
         with tabs[3]: kt.run_kegiatan_tracker()
 
 def main():
-    # Langsung jalankan interface utama tanpa pengecekan 'logged_in'
+    # Langsung ke interface utama
     main_interface()
 
 if __name__ == "__main__":
