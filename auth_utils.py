@@ -9,10 +9,10 @@ def hash_pass(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
 def load_user_db():
+    # Jika file ada, baca dan pastikan kolom lengkap
     if os.path.exists(USER_DB_FILE):
         try:
             df = pd.read_csv(USER_DB_FILE)
-            # Pastikan kolom standar tersedia
             for col in ["Email", "Password", "Role", "Status"]:
                 if col not in df.columns:
                     df[col] = "Active" if col == "Status" else ("User" if col == "Role" else "")
@@ -20,7 +20,7 @@ def load_user_db():
         except:
             pass
             
-    # Jika file tidak ada/error, buat admin default
+    # Jika file tidak ada, buat Admin default agar aplikasi bisa terbuka
     df_default = pd.DataFrame([{
         "Email": "imanmuhamad9@gmail.com", 
         "Password": "", 
@@ -35,10 +35,7 @@ def log_activity(user, activity):
     now = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
     new_log = pd.DataFrame([[now, user, activity]], columns=["Waktu", "User", "Aktivitas"])
     if os.path.exists(log_file):
-        try:
-            df_log = pd.read_csv(log_file)
-            pd.concat([df_log, new_log], ignore_index=True).to_csv(log_file, index=False)
-        except:
-            new_log.to_csv(log_file, index=False)
+        df_log = pd.read_csv(log_file)
+        pd.concat([df_log, new_log], ignore_index=True).to_csv(log_file, index=False)
     else:
         new_log.to_csv(log_file, index=False)
