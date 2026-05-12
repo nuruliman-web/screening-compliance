@@ -9,7 +9,7 @@ def hash_pass(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
 def load_user_db():
-    # Jika file ada, baca dan pastikan kolom lengkap
+    # Jika file ada, baca dan pastikan kolom lengkap agar tidak crash
     if os.path.exists(USER_DB_FILE):
         try:
             df = pd.read_csv(USER_DB_FILE)
@@ -20,7 +20,7 @@ def load_user_db():
         except:
             pass
             
-    # Jika file tidak ada, buat Admin default agar aplikasi bisa terbuka
+    # Jika file tidak ada, buat Admin default otomatis
     df_default = pd.DataFrame([{
         "Email": "imanmuhamad9@gmail.com", 
         "Password": "", 
