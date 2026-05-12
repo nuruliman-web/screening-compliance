@@ -1,33 +1,49 @@
 import streamlit as st
 import pandas as pd
-from auth_utils import load_user_db
+import os
+from auth_utils import load_user_db, USER_DB_FILE, hash_pass
 
 def run_user_management():
-    st.header("👥 Daftar Pengguna Terdaftar")
-    st.markdown("Halaman ini menampilkan daftar user yang ada dalam database sistem.")
+    st.markdown("### 👥 Manajemen & Daftar Pengguna")
     
-    # Memanggil data dari CSV melalui auth_utils
-    df_users = load_user_db()
+    # 1. FORM UNTUK MENAMBAH USER (KARENA LOGIN DIHAPUS)
+    with st.expander("➕ Tambah User Baru ke Database", expanded=False):
+        with st.form("form_add_user", clear_on_submit=True):
+            new_email = st.text_input("Email User:").lower().strip()
+            new_role = st.selectbox("Role:", ["Admin", "User"])
+            new_status = st.selectbox("Status:", ["Active", "Blocked"])
+            # Password default (bisa diisi manual atau dikosongkan)
+            new_pass = st.text_input("Password (Default):", value="1234", type="password")
+            
+            submit = st.form_submit_button("💾 Simpan User")
+            
+            if submit:
+                if new_email and "@" in new_email:
+                    df_users = load_user_db()
+                    if new_email not in df_users['Email'].tolist():
+                        new_data = pd.DataFrame([{
+                            "Email": new_email,
+                            "Password": hash_pass(new_pass),
+                            "Role": new_role,
+                            "Status": new_status
+                        }])
+                        df_save = pd.concat([df_users, new_data], ignore_index=True)
+                        df_save.to_csv(USER_DB_FILE, index=False)
+                        st.success(f"✅ User {new_email} berhasil ditambahkan!")
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ User dengan email tersebut sudah ada.")
+                else:
+                    st.error("❌ Mohon masukkan email yang valid.")
 
-    if not df_users.empty:
-        # Menghapus kolom Password dari tampilan agar lebih rapi dan aman
-        if 'Password' in df_users.columns:
-            display_df = df_users.drop(columns=['Password'])
-        else:
-            display_df = df_users
+    st.divider()
 
-        # Menampilkan tabel data user
-        st.dataframe(
-            display_df, 
-            use_container_width=True, 
-            hide_index=True
-        )
-        
-        # Informasi tambahan di bawah tabel
-        st.info(f"💡 Saat ini terdapat **{len(df_users)}** user yang terdata.")
+    # 2. TAMPILAN TABEL USER
+    df_display = load_user_db()
+    if not df_display.empty:
+        # Sembunyikan kolom password
+        cols_show = [c for c in df_display.columns if 'password' not in c.lower()]
+        st.dataframe(df_display[cols_show], use_container_width=True, hide_index=True)
+        st.caption(f"Total: {len(df_display)} user terdaftar.")
     else:
-        st.warning("⚠️ Belum ada data user yang terdeteksi di file `users.csv`.")
-
-    # Tombol refresh manual untuk menarik data terbaru
-    if st.button("🔄 Perbarui Tampilan Data"):
-        st.rerun()
+        st.info("Belum ada user di database. Gunakan menu 'Tambah User' di atas.")
