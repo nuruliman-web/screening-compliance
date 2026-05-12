@@ -15,7 +15,7 @@ import log_tab as lt
 st.set_page_config(page_title="Screening System", layout="wide")
 
 def login_screen():
-    # INI KODINGAN ASLI KAMU (Tidak aku ubah tampilannya)
+    # Tampilan judul dan form asli
     st.title("🔐 Login Screening System")
     
     df_users = load_user_db()
@@ -42,11 +42,7 @@ def login_screen():
         else:
             st.warning("Masukkan email.")
 
-    with st.expander("🛠️ Menu Darurat"):
-        if st.button("🔥 Reset Database"):
-            if os.path.exists(USER_DB_FILE): os.remove(USER_DB_FILE)
-            if os.path.exists("whitelist.csv"): os.remove("whitelist.csv")
-            st.rerun()
+    # MENU DARURAT SUDAH DIHAPUS DARI SINI
 
 def main_interface():
     # HEADER LOGOUT (Fullscreen, di atas)
@@ -82,7 +78,7 @@ def main_interface():
         with t3: kyc.run_kyc_dashboard()
         with t4: kt.run_kegiatan_tracker()
 
-# INI PENYEBAB UTAMA BLANK KEMARIN (KARENA TIDAK ADA TRIGGERNYA)
+# TRIGGER UTAMA UNTUK MENJALANKAN APLIKASI
 def main():
     if 'logged_in' not in st.session_state:
         st.session_state['logged_in'] = False
