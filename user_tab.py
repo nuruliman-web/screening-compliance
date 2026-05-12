@@ -1,24 +1,40 @@
 import streamlit as st
 import pandas as pd
 import os
-from auth_utils import load_user_db, USER_DB_FILE
+
+def load_user_db():
+    # Menyesuaikan dengan nama file database Anda, umumnya users.csv
+    file_path = 'users.csv' 
+    if os.path.exists(file_path):
+        try:
+            df = pd.read_csv(file_path)
+            df.columns = df.columns.str.strip() # Bersihkan spasi di nama kolom
+            return df
+        except:
+            return pd.DataFrame(columns=['Email', 'Role', 'Status'])
+    return pd.DataFrame(columns=['Email', 'Role', 'Status'])
 
 def run_user_management():
-    st.markdown("### 👥 Manajemen Pengguna")
+    st.subheader("👥 Manajemen Pengguna")
+    
+    # Ambil data terbaru
     df_users = load_user_db()
 
-    with st.expander("➕ Tambah Akses User Baru", expanded=True):
-        c1, c2, c3 = st.columns([2, 1, 1], vertical_alignment="bottom")
-        new_email = c1.text_input("Email User:").lower().strip()
-        new_role = c2.radio("Peran Akun:", ["User", "Admin"], horizontal=True)
+    if not df_users.empty:
+        # Menampilkan tabel (tanpa kolom password demi keamanan tampilan)
+        cols_to_show = [c for c in df_users.columns if 'pass' not in c.lower()]
         
-        if c3.button("Simpan Akses"):
-            if new_email and "@" in new_email:
-                if new_email not in df_users['Email'].astype(str).str.lower().str.strip().tolist():
-                    new_row = pd.DataFrame([{"Email": new_email, "Password": "", "Role": new_role, "Status": "Active"}])
-                    df_save = pd.concat([df_users, new_row], ignore_index=True)
-                    df_save.to_csv(USER_DB_FILE, index=False)
-                    st.success(f"✅ {new_email} terdaftar!")
-                    st.rerun()
-                else:
-                    st.warning("⚠️ Email sudah ada.")
+        st.dataframe(
+            df_users[cols_to_show], 
+            use_container_width=True, 
+            hide_index=True
+        )
+        
+        st.caption(f"Total user terdaftar: {len(df_users)}")
+    else:
+        st.warning("⚠️ Tidak ada data user yang ditemukan di database.")
+
+    # Tetap sediakan expander untuk kontrol (opsional)
+    with st.expander("Opsi Tambahan"):
+        if st.button("Refresh Data User"):
+            st.rerun()
