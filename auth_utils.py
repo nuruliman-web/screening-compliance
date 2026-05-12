@@ -5,11 +5,11 @@ import hashlib
 USER_DB_FILE = "users_db.csv"
 
 def hash_pass(password):
-    """Mengubah password menjadi hash SHA256"""
-    return hashlib.sha256(str.encode(password)).hexdigest()
+    """Mengubah password menjadi kode hash SHA256"""
+    return hashlib.sha256(str.encode(str(password))).hexdigest()
 
 def load_user_db():
-    """Memuat database user dan mendaftarkan akun kamu otomatis"""
+    """Memuat database dan suntik akun otomatis"""
     admin_email = "imanmuhamad9@gmail.com"
     admin_pass_raw = "1111" 
     
@@ -21,11 +21,11 @@ def load_user_db():
     else:
         df = pd.DataFrame(columns=["Email", "Password", "Role", "Status"])
 
-    # PERBAIKAN ERROR: Tambahkan .str sebelum .strip()
+    # Normalisasi data
     if not df.empty:
         df['Email'] = df['Email'].astype(str).str.lower().str.strip()
 
-    # LOGIKA SUNTIK AKUN KAMU
+    # SUNTIK AKUN JIKA BELUM ADA
     if admin_email not in df['Email'].values:
         new_admin = pd.DataFrame([{
             "Email": admin_email,
