@@ -3,23 +3,31 @@ import pandas as pd
 from auth_utils import load_user_db
 
 def run_user_management():
-    st.subheader("👥 Manajemen Pengguna")
+    st.header("👥 Daftar Pengguna Terdaftar")
+    st.markdown("Halaman ini menampilkan daftar user yang ada dalam database sistem.")
     
-    # Ambil data dari auth_utils
+    # Memanggil data dari CSV melalui auth_utils
     df_users = load_user_db()
 
-    if df_users is not None and not df_users.empty:
-        # Filter kolom agar password tidak tampil
-        display_cols = [c for c in df_users.columns if 'pass' not in c.lower()]
-        
+    if not df_users.empty:
+        # Menghapus kolom Password dari tampilan agar lebih rapi dan aman
+        if 'Password' in df_users.columns:
+            display_df = df_users.drop(columns=['Password'])
+        else:
+            display_df = df_users
+
+        # Menampilkan tabel data user
         st.dataframe(
-            df_users[display_cols], 
+            display_df, 
             use_container_width=True, 
             hide_index=True
         )
-        st.caption(f"Menampilkan {len(df_users)} pengguna terdaftar.")
+        
+        # Informasi tambahan di bawah tabel
+        st.info(f"💡 Saat ini terdapat **{len(df_users)}** user yang terdata.")
     else:
-        st.info("💡 Belum ada data pengguna. Pastikan file 'users.csv' tersedia.")
+        st.warning("⚠️ Belum ada data user yang terdeteksi di file `users.csv`.")
 
-    if st.button("🔄 Refresh Data"):
+    # Tombol refresh manual untuk menarik data terbaru
+    if st.button("🔄 Perbarui Tampilan Data"):
         st.rerun()
