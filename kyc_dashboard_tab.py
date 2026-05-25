@@ -50,48 +50,46 @@ def run_kyc_dashboard():
         df_save = pd.DataFrame(rows)
         df_save.to_csv(LOCAL_DB_FILE, index=False)
 
-    # --- 4. FUNGSI INJEKSI DATA MANUAL (DARI GAMBAR) ---
+    # --- 4. FUNGSI INJEKSI DATA MANUAL (DENGAN RINCIAN RISK) ---
     def get_default_target(cbg, kat):
-        # Mengambil data dari kolom "Total Nasabah" di gambar
-        # Dimasukkan ke Low Risk terlebih dahulu agar total summary-nya cocok 100%
+        # Data disesuaikan 100% dengan kolom Low, Medium, High dari gambar baru
         if kat == "Perorangan":
-            if cbg == 'KPO':                return {'High': 0, 'Medium': 0, 'Low': 182}
-            elif cbg == 'Tangerang':        return {'High': 0, 'Medium': 0, 'Low': 13}
-            elif cbg == 'Depok':            return {'High': 0, 'Medium': 0, 'Low': 30}
-            elif cbg == 'Bekasi':           return {'High': 0, 'Medium': 0, 'Low': 52}
-            elif cbg == 'Bogor':            return {'High': 0, 'Medium': 0, 'Low': 5}
-            elif cbg == 'Jambi':            return {'High': 0, 'Medium': 0, 'Low': 80}
-            elif cbg == 'Pekanbaru':        return {'High': 0, 'Medium': 0, 'Low': 5}
-            elif cbg == 'Pangkalan Kerinci': return {'High': 0, 'Medium': 0, 'Low': 21}
-            elif cbg == 'Pontianak':        return {'High': 0, 'Medium': 0, 'Low': 58}
-            elif cbg == 'Siantan':          return {'High': 0, 'Medium': 0, 'Low': 6}
+            if cbg == 'KPO':                return {'High': 59, 'Medium': 44, 'Low': 79}
+            elif cbg == 'Tangerang':        return {'High': 0,  'Medium': 0,  'Low': 13}
+            elif cbg == 'Depok':            return {'High': 4,  'Medium': 7,  'Low': 19}
+            elif cbg == 'Bekasi':           return {'High': 5,  'Medium': 9,  'Low': 38}
+            elif cbg == 'Bogor':            return {'High': 0,  'Medium': 0,  'Low': 5}
+            elif cbg == 'Jambi':            return {'High': 3,  'Medium': 75, 'Low': 2}
+            elif cbg == 'Pekanbaru':        return {'High': 3,  'Medium': 2,  'Low': 0}
+            elif cbg == 'Pangkalan Kerinci': return {'High': 16, 'Medium': 5,  'Low': 0}
+            elif cbg == 'Pontianak':        return {'High': 2,  'Medium': 15, 'Low': 41}
+            elif cbg == 'Siantan':          return {'High': 0,  'Medium': 6,  'Low': 0}
             
         elif kat == "Korporasi":  # Badan Usaha
-            if cbg == 'KPO':                return {'High': 0, 'Medium': 0, 'Low': 32}
-            elif cbg == 'Tangerang':        return {'High': 0, 'Medium': 0, 'Low': 3}
-            elif cbg == 'Bekasi':           return {'High': 0, 'Medium': 0, 'Low': 1}
-            elif cbg == 'Bogor':            return {'High': 0, 'Medium': 0, 'Low': 2}
-            elif cbg == 'Jambi':            return {'High': 0, 'Medium': 0, 'Low': 1}
-            elif cbg == 'Pontianak':        return {'High': 0, 'Medium': 0, 'Low': 7}
+            if cbg == 'KPO':                return {'High': 7,  'Medium': 5,  'Low': 20}
+            elif cbg == 'Tangerang':        return {'High': 1,  'Medium': 0,  'Low': 2}
+            elif cbg == 'Bekasi':           return {'High': 0,  'Medium': 0,  'Low': 1}
+            elif cbg == 'Bogor':            return {'High': 2,  'Medium': 0,  'Low': 0}
+            elif cbg == 'Jambi':            return {'High': 0,  'Medium': 1,  'Low': 0}
+            elif cbg == 'Pontianak':        return {'High': 0,  'Medium': 0,  'Low': 7}
             
         return {'High': 0, 'Medium': 0, 'Low': 0}
 
     def get_default_realisasi(cbg, kat):
-        # Base template isi 0 untuk semua bulan
+        # Realisasi bulanan tetap menggunakan pola kumulatif dari kolom "Telah Dikinikan"
         realisasi = {m: 0 for m in list_bulan}
         
-        # Mengambil data dari kolom "Telah Dikinikan" secara kumulatif
         if kat == "Perorangan":
             if cbg == 'KPO':                realisasi.update({'Januari': 57, 'Februari': 57, 'Maret': 57, 'April': 182})
             elif cbg == 'Tangerang':        realisasi.update({'Januari': 12, 'Februari': 12, 'Maret': 12, 'April': 13})
-            elif cbg == 'Depok':            realisasi.update({'Januari': 0, 'Februari': 0, 'Maret': 30, 'April': 30})
-            elif cbg == 'Bekasi':           realisasi.update({'Januari': 0, 'Februari': 0, 'Maret': 0, 'April': 4})
-            elif cbg == 'Bogor':            realisasi.update({'Januari': 3, 'Februari': 4, 'Maret': 4, 'April': 5})
+            elif cbg == 'Depok':            realisasi.update({'Januari': 0,  'Februari': 0,  'Maret': 30, 'April': 30})
+            elif cbg == 'Bekasi':           realisasi.update({'Januari': 0,  'Februari': 0,  'Maret': 0,  'April': 4})
+            elif cbg == 'Bogor':            realisasi.update({'Januari': 3,  'Februari': 4,  'Maret': 4,  'April': 5})
             elif cbg == 'Jambi':            realisasi.update({'Januari': 12, 'Februari': 12, 'Maret': 33, 'April': 43})
-            elif cbg == 'Pekanbaru':        realisasi.update({'Januari': 5, 'Februari': 5, 'Maret': 5, 'April': 5})
-            elif cbg == 'Pangkalan Kerinci': realisasi.update({'Januari': 1, 'Februari': 7, 'Maret': 21, 'April': 21})
+            elif cbg == 'Pekanbaru':        realisasi.update({'Januari': 5,  'Februari': 5,  'Maret': 5,  'April': 5})
+            elif cbg == 'Pangkalan Kerinci': realisasi.update({'Januari': 1,  'Februari': 7,  'Maret': 21, 'April': 21})
             elif cbg == 'Pontianak':        realisasi.update({'Januari': 58, 'Februari': 58, 'Maret': 58, 'April': 58})
-            elif cbg == 'Siantan':          realisasi.update({'Januari': 6, 'Februari': 6, 'Maret': 6, 'April': 6})
+            elif cbg == 'Siantan':          realisasi.update({'Januari': 6,  'Februari': 6,  'Maret': 6,  'April': 6})
                 
         elif kat == "Korporasi":  # Badan Usaha
             if cbg == 'KPO':                realisasi.update({'Januari': 0, 'Februari': 0, 'Maret': 0, 'April': 32})
@@ -109,7 +107,6 @@ def run_kyc_dashboard():
         if data_lokal:
             st.session_state.db_kyc_v37 = data_lokal
         else:
-            # Jika file CSV tidak ada, buat template baru + suntik data manual di atas
             st.session_state.db_kyc_v37 = {
                 thn: { 
                     kat: { 
@@ -128,7 +125,7 @@ def run_kyc_dashboard():
         f1, f2, f3 = st.columns(3)
         with f1: thn_v = st.selectbox("📅 Pilih Tahun", list_tahun, index=2) # Default ke 2026
         with f2: kat_v = st.selectbox("📂 Pilih Kategori", ["Perorangan", "Korporasi"])
-        with f3: bln_v = st.selectbox("📆 Posisi Bulan s/d", list_bulan, index=3) # Default langsung ke April
+        with f3: bln_v = st.selectbox("📆 Posisi Bulan s/d", list_bulan, index=3) # Default ke April
 
     tab_v, tab_p, tab_t = st.tabs(["📈 Dashboard Utama", "✍️ Update Progres", "⚙️ Setup Target Risk"])
 
@@ -142,7 +139,7 @@ def run_kyc_dashboard():
             total_t = sum(t.values())
             real_tampil = 0
             
-            # Algoritma mencari realisasi bulan aktif atau bulan sebelumnya jika bulan ini kosong
+            # Algoritma lookup mundur jika realisasi bulan terpilih kosong
             for i in range(idx_pilihan, -1, -1):
                 val = db_ref[cbg]['r'][list_bulan[i]]
                 if val > 0:
@@ -158,7 +155,7 @@ def run_kyc_dashboard():
         
         df = pd.DataFrame(rows)
         
-        # Bagian Metric Card Atas
+        # Metric Card
         m1, m2, m3 = st.columns(3)
         tt, tr = df['Total Target'].sum(), df['Realisasi'].sum()
         tp = int(round((tr/tt)*100)) if tt > 0 else 0
@@ -166,11 +163,11 @@ def run_kyc_dashboard():
         m2.metric(f"✅ Realisasi {bln_v}", f"{tr:,}".replace(",", "."), f"{tp}%")
         m3.metric("⏳ Sisa", f"{(tt-tr):,}".replace(",", "."), f"{100-tp}%", delta_color="inverse")
         
-        # Grafik & Tabel Data
+        # Visualisasi
         st.bar_chart(df.set_index('Cabang')[['Realisasi', 'Sisa']], color=["#4F46E5", "#EF4444"])
         st.dataframe(df, use_container_width=True, hide_index=True)
 
-        # Download Button
+        # Download Report
         csv_db = df.to_csv(index=False).encode('utf-8')
         st.download_button("📥 Download Summary Laporan (CSV)", csv_db, f"Summary_KYC_{kat_v}_{bln_v}.csv", "text/csv")
 
@@ -185,7 +182,7 @@ def run_kyc_dashboard():
             
             if st.button("💾 Simpan Progres", use_container_width=True):
                 st.session_state.db_kyc_v37[thn_v][kat_v][u_cbg]['r'][bln_v] = int(u_val) if u_val is not None else 0
-                save_to_local(st.session_state.db_kyc_v37) # Save ke file lokal CSV
+                save_to_local(st.session_state.db_kyc_v37)
                 st.success("Berhasil Simpan ke Database Lokal!")
                 time.sleep(0.5)
                 st.rerun()
@@ -211,7 +208,7 @@ def run_kyc_dashboard():
                 st.session_state.db_kyc_v37[thn_v][kat_v][c]['t']['High'] = int(row['High']) if pd.notnull(row['High']) else 0
                 st.session_state.db_kyc_v37[thn_v][kat_v][c]['t']['Medium'] = int(row['Medium']) if pd.notnull(row['Medium']) else 0
                 st.session_state.db_kyc_v37[thn_v][kat_v][c]['t']['Low'] = int(row['Low']) if pd.notnull(row['Low']) else 0
-            save_to_local(st.session_state.db_kyc_v37) # Save ke file lokal CSV
+            save_to_local(st.session_state.db_kyc_v37)
             st.success("Target Berhasil Diperbarui!")
             time.sleep(0.5)
             st.rerun()
