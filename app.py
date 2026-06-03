@@ -13,7 +13,7 @@ import log_tab as lt
 # IMPORT TAB BARU SIPESAT
 import sipesat_tab as ss
 
-st.set_page_config(page_title=\"Screening System\", layout=\"wide\", initial_sidebar_state=\"collapsed\")
+st.set_page_config(page_title="Screening System", layout="wide", initial_sidebar_state="collapsed")
 
 def main_interface():
     # Identitas Default
@@ -33,7 +33,7 @@ def main_interface():
     # Load Data Utama
     db_p, stats, total = sc.fetch_all_data()
 
-    # Navigasi Tab (Tambahkan "📊 SIPESAT" di dalam list ini)
+    # Navigasi Tab (Menambahkan "📊 SIPESAT" di urutan kelima)
     tabs = st.tabs(["🔍 Single", "🚀 Bulk", "📊 KYC Dashboard", "📝 Log Kegiatan", "📊 SIPESAT", "👥 Users", "🕒 Admin Log"])
     
     # Jalankan fungsi sesuai tab masing-masing
