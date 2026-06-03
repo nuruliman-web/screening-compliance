@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 import io
 
-def show():  # <-- Nama fungsi diganti 'show' agar seragam dengan tab lain
-    st.header("📋 Pengolahan & Rekap Data SIPESAT")
+def run_sipesat():
+    st.markdown("### 📋 Pengolahan & Rekap Data SIPESAT")
     st.write("Upload file mentah nasabah (Excel atau CSV) untuk diolah otomatis menjadi format standar SIPESAT.")
 
     uploaded_file = st.file_uploader(
@@ -49,7 +49,7 @@ def show():  # <-- Nama fungsi diganti 'show' agar seragam dengan tab lain
                     ).str.strip()
 
             st.subheader("✨ Hasil Standar Data SIPESAT")
-            st.dataframe(df_processed)
+            st.dataframe(df_processed, hide_index=True)
             
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -60,7 +60,8 @@ def show():  # <-- Nama fungsi diganti 'show' agar seragam dengan tab lain
                 label="📥 Download Hasil Rekap SIPESAT (Excel)",
                 data=processed_data,
                 file_name="Hasil_Rekap_SIPESAT.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
             )
             st.success("Data berhasil diproses! Silakan unduh file Excel di atas.")
 
