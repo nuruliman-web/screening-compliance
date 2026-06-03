@@ -2,26 +2,19 @@ import streamlit as st
 import pandas as pd
 
 def run_sipesat():
-    st.markdown("### 📊 Pembaca File SIPESAT .tab")
-    st.write("Silakan upload file `.tab` kamu di bawah ini.")
+    st.markdown("### 📋 Pembaca File M4CU (.tab)")
+    st.write("Silakan upload file `.tab` kamu di bawah ini untuk langsung melihat isinya.")
 
-    # --- TOMBOL UPLOAD FILE (DIPERBAIKI) ---
-    # Kita hapus pembatasan type agar Streamlit tidak crash duluan saat file dimasukkan
+    # 1. Tombol Upload File (Tanpa batasan type agar Streamlit tidak error duluan)
     uploaded_file = st.file_uploader(
-        "📤 Upload File .tab Kamu", 
+        "📤 Upload File .tab Kamu di Sini", 
         type=None, 
-        key="uploader_tab_sipesat_final"
+        key="uploader_sipesat_simple"
     )
 
     if uploaded_file is not None:
         try:
-            # Pastikan yang dimasukkan benar file yang berakhiran .tab
-            if not uploaded_file.name.endswith('.tab'):
-                st.warning("⚠️ Mohon masukkan file yang berakhiran format .tab")
-                return
-
-            # Membaca data mentah dari file .tab dengan pembatas TAB (\t)
-            # header=None karena file tidak memiliki judul di baris pertama
+            # 2. Membaca file menggunakan pemisah Tab (\t) dan tanpa judul kolom (header=None)
             df = pd.read_csv(
                 uploaded_file, 
                 sep='\t', 
@@ -31,15 +24,12 @@ def run_sipesat():
                 encoding_errors='ignore'
             )
             
-            st.success(f"✅ File '{uploaded_file.name}' BERHASIL MASUK DAN DIBACA!")
-            st.info(f"📋 Terdeteksi: {len(df)} baris data dan {len(df.columns)} kolom.")
+            st.success(f"✅ File '{uploaded_file.name}' berhasil dibaca!")
+            st.info(f"📋 Total data: {len(df)} baris dan {len(df.columns)} kolom.")
             
-            # Menampilkan hasil pembacaan ke layar berbentuk tabel nomor
-            st.subheader("👀 Preview Data Tabel:")
+            # 3. Langsung tampilkan isinya berupa tabel utuh di layar
+            st.subheader("👀 Isi Data File Kamu:")
             st.dataframe(df, use_container_width=True)
-            
-            # Menyimpan data asli ke memori agar aman
-            st.session_state['data_mentah_tab'] = df
 
         except Exception as e:
-            st.error(f"❌ Terjadi kesalahan saat membaca jeroan file: {e}")
+            st.error(f"❌ Gagal membaca isi file. Error: {e}")
