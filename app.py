@@ -1,44 +1,77 @@
 import streamlit as st
-import pandas as pd
-from auth_utils import load_user_db
 
-# Import modul tab
-import screening_tab as sc
-import bulk_admin_tab as bat
-import kyc_dashboard_tab as kyc
-import kegiatan_tracker as kt
-import user_tab as ut
-import log_tab as lt
+# 1. IMPORT SEMUA TAB/MODUL YANG KAMU MILIKI
+from screening_tab import render_screening_tab
+from kyc_dashboard_tab import render_kyc_dashboard_tab
+from bulk_admin_tab import render_bulk_admin_tab
+from user_tab import render_user_tab
+from log_tab import render_log_tab
+from kegiatan_tracker import render_kegiatan_tracker  # Sesuaikan jika nama fungsinya berbeda
 
-st.set_page_config(page_title="Screening System", layout="wide", initial_sidebar_state="collapsed")
+# IMPORT TAB BARU YANG TADI KITA BUAT
+from sipesat_tab import render_sipesat_tab 
 
-def main_interface():
-    # Identitas Default
-    if 'user' not in st.session_state:
-        st.session_state['user'] = "Admin_System"
-    if 'role' not in st.session_state:
-        st.session_state['role'] = "Admin"
+# (Opsional) Jika kamu menggunakan file auth_utils untuk login
+# from auth_utils import check_password
 
-    # Header
-    c1, c2 = st.columns([10, 2])
-    c1.markdown(f"👤 **Mode:** Direct Access | 🏷️ **Role:** {st.session_state['role']}")
-    if c2.button("🔄 Refresh App", use_container_width=True):
-        st.rerun()
+def main():
+    # Pengaturan dasar halaman web Streamlit
+    st.set_page_config(
+        page_title="Screening & Compliance System",
+        page_icon="🛡️",
+        layout="wide"
+    )
+
+    # --- BAGIAN OTENTIKASI / LOGIN (Jika ada) ---
+    # Jika web kamu membutuhkan login, biasanya kodenya ditaruh di sini.
+    # Contoh:
+    # if not check_password():
+    #     st.stop()
+
+    # --- BAGIAN SIDEBAR & NAVIGASI MENU ---
+    st.sidebar.title("🧭 Navigasi Menu")
     
-    st.divider()
+    # Menambahkan "SIPESAT" ke dalam daftar pilihan menu di Sidebar
+    menu_options = [
+        "Dashboard KYC", 
+        "Screening", 
+        "SIPESAT",           # <-- Menu Baru Kamu
+        "Bulk Admin", 
+        "User Management", 
+        "Activity Log",
+        "Kegiatan Tracker"
+    ]
     
-    # Load Data Utama
-    db_p, stats, total = sc.fetch_all_data()
+    # Membuat komponen selectbox di sidebar untuk memilih menu
+    pilihan_menu = st.sidebar.selectbox("Pilih Halaman:", menu_options)
 
-    # Navigasi Tab
-    tabs = st.tabs(["🔍 Single", "🚀 Bulk", "📊 KYC Dashboard", "📝 Log Kegiatan", "👥 Users", "🕒 Admin Log"])
+    st.sidebar.markdown("---")
+    st.sidebar.caption("Screening Compliance App v1.1")
+
+    # --- BAGIAN LOGIKAL PERCABANGAN MENU (ROUTING) ---
+    # Di sini aplikasi akan mendeteksi menu apa yang sedang diklik oleh user
     
-    with tabs[0]: sc.run_pencarian(st.session_state['user'], db_p, True)
-    with tabs[1]: bat.run_bulk_screening()
-    with tabs[2]: kyc.run_kyc_dashboard()
-    with tabs[3]: kt.run_kegiatan_tracker()
-    with tabs[4]: ut.run_user_management() # Tab User dengan menu tambah
-    with tabs[5]: lt.run_log_admin(stats, total)
+    if pilihan_menu == "Dashboard KYC":
+        render_kyc_dashboard_tab()
+        
+    elif pilihan_menu == "Screening":
+        render_screening_tab()
+        
+    elif pilihan_menu == "SIPESAT":
+        # Menjalankan fungsi dari file sipesat_tab.py yang kita buat sebelumnya
+        render_sipesat_tab()
+        
+    elif pilihan_menu == "Bulk Admin":
+        render_bulk_admin_tab()
+        
+    elif pilihan_menu == "User Management":
+        render_user_tab()
+        
+    elif pilihan_menu == "Activity Log":
+        render_log_tab()
+        
+    elif pilihan_menu == "Kegiatan Tracker":
+        render_kegiatan_tracker()
 
 if __name__ == "__main__":
-    main_interface()
+    main()
