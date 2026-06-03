@@ -34,5 +34,3 @@ def run_sipesat():
 
         except Exception as e:
             st.error(f"Terjadi kesalahan saat membaca file: {e}")
-
-# Kita biarkan fungsi ini dipanggil oleh app.py kamu secara normal
