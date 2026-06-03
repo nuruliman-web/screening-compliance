@@ -2,11 +2,10 @@ import streamlit as st
 import pandas as pd
 import io
 
-def render_sipesat_tab():
+def show():  # <-- Nama fungsi diganti 'show' agar seragam dengan tab lain
     st.header("📋 Pengolahan & Rekap Data SIPESAT")
     st.write("Upload file mentah nasabah (Excel atau CSV) untuk diolah otomatis menjadi format standar SIPESAT.")
 
-    # 1. Upload File Mentah
     uploaded_file = st.file_uploader(
         "Pilih file mentah data nasabah", 
         type=["xlsx", "xls", "csv"], 
@@ -15,55 +14,43 @@ def render_sipesat_tab():
 
     if uploaded_file is not None:
         try:
-            # Membaca file berdasarkan ekstensinya (memaksa string agar format angka/0 tidak hilang)
             if uploaded_file.name.endswith('.csv'):
                 df_raw = pd.read_csv(uploaded_file, dtype=str)
             else:
                 df_raw = pd.read_excel(uploaded_file, dtype=str)
             
-            # Tampilkan preview data mentah
             with st.expander("📋 Preview Data Mentah (5 Baris Pertama)"):
                 st.dataframe(df_raw.head())
 
-            # 2. Proses Pengolahan Data
             st.info("⚙️ Sedang menyelaraskan kolom dan membersihkan data...")
             
-            # Kolom target wajib sesuai standar di foto kamu
             target_columns = [
                 'IDPJK', 'kodenasabah', 'namanasabah', 'tempatLahir', 
                 'TanggalLahir', 'Alamat', 'No.KTP', 'No.Idlain', 'No.CIF', 'No.NPWP'
             ]
             
-            # Membuat dataframe kosong dengan struktur kolom standar
             df_processed = pd.DataFrame(columns=target_columns)
             
-            # Mapping otomatis yang fleksibel (menyamakan nama kolom tanpa sensitif huruf besar/kecil & spasi)
             for col in target_columns:
                 matched_col = [c for c in df_raw.columns if c.lower().strip().replace(" ", "") == col.lower().strip().replace(" ", "")]
                 if matched_col:
                     df_processed[col] = df_raw[matched_col[0]]
                 else:
-                    df_processed[col] = ""  # Isi kosong jika di file mentah tidak ditemukan
+                    df_processed[col] = ""
 
-            # --- Data Cleansing & Formatting ---
-            # Mengubah kolom teks penting menjadi HURUF KAPITAL (UPPERCASE)
             for text_upper_col in ['namanasabah', 'tempatLahir', 'Alamat']:
                 if text_upper_col in df_processed.columns:
                     df_processed[text_upper_col] = df_processed[text_upper_col].fillna("").astype(str).str.upper().str.strip()
 
-            # Memastikan kolom angka sensitif (seperti KTP, CIF, NPWP) bersih dari pecahan desimal bawaan Excel (misal .0)
             for num_col in ['IDPJK', 'kodenasabah', 'No.KTP', 'No.Idlain', 'No.CIF', 'No.NPWP']:
                 if num_col in df_processed.columns:
-                    # Menghilangkan '.0' jika ada akibat konversi tipe data angka di Excel
                     df_processed[num_col] = df_processed[num_col].fillna("").astype(str).apply(
                         lambda x: x.split('.')[0] if x.endswith('.0') else x
                     ).str.strip()
 
-            # Tampilkan Hasil Akhir yang sudah rapi
             st.subheader("✨ Hasil Standar Data SIPESAT")
             st.dataframe(df_processed)
             
-            # 3. Tombol Download Excel
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 df_processed.to_excel(writer, index=False, sheet_name='SIPESAT_RECAP')
