@@ -1,36 +1,47 @@
 import streamlit as st
+import pandas as pd
 
 def run_sipesat():
-    st.markdown("### 📝 Pembaca File SIPESAT (.tab / .txt)")
-    st.write("Silakan upload file dengan format **.tab** atau **.txt** kamu di bawah ini untuk melihat isinya.")
+    st.markdown("### 📊 Pembaca File SIPESAT (.tab / .txt / .csv)")
+    st.write("Silakan upload file `.tab` kamu di bawah ini untuk melihat isinya dalam bentuk tabel rapi.")
 
     # --- TOMBOL UPLOAD FILE ---
+    # Kita izinkan format tab, txt, dan csv sekalian agar fleksibel
     uploaded_file = st.file_uploader(
-        "📤 Upload File (.tab atau .txt)", 
-        type=["tab", "txt"], 
+        "📤 Upload File Kamu", 
+        type=["tab", "txt", "csv"], 
         key="uploader_tab_sipesat"
     )
 
     if uploaded_file is not None:
         try:
-            # 1. Membaca isi file .tab sebagai teks string
-            isi_teks = uploaded_file.read().decode("utf-8", errors="ignore")
-            
-            st.success(f"✅ File {uploaded_file.name} berhasil dibaca!")
-            
-            # 2. Menampilkan isi dokumen ke dalam kotak teks di Streamlit
-            st.subheader("📄 Preview Isi File:")
-            st.text_area(
-                label="Isi dokumen asli:", 
-                value=isi_teks, 
-                height=400, 
-                disabled=True
+            # 1. Deteksi format pembatas (jika .tab atau .txt biasanya pakai Tab/sep='\t')
+            if uploaded_file.name.endswith('.csv'):
+                sep_karakter = ','
+            else:
+                sep_karakter = '\t' # Karakter TAB untuk file .tab
+
+            # 2. Membaca file dengan aman (mengabaikan error karakter aneh & memaksa string)
+            df = pd.read_csv(
+                uploaded_file, 
+                sep=sep_karakter, 
+                dtype=str, 
+                encoding='utf-8', 
+                encoding_errors='ignore'
             )
             
-            # Menyimpan isi teks ke memori session agar aman
-            st.session_state['isi_file_tab_sipesat'] = isi_teks
+            st.success(f"✅ File '{uploaded_file.name}' berhasil dibaca dengan sempurna!")
             
-            st.info("💡 Isinya sudah muncul di atas. Silakan dicek dulu apakah datanya sudah kelihatan!")
+            # 3. Menampilkan info jumlah data
+            st.info(f"📋 Total data yang terdeteksi: {len(df)} baris dan {len(df.columns)} kolom.")
+            
+            # 4. Menampilkan isi dokumen dalam bentuk TABEL RAPI (bisa di-scroll)
+            st.subheader("📊 Preview Data Tabel:")
+            st.dataframe(df, use_container_width=True)
+            
+            # Menyimpan data ke memori session state agar bisa diolah nanti
+            st.session_state['data_tab_sipesat'] = df
 
         except Exception as e:
-            st.error(f"Terjadi kesalahan saat membaca file: {e}")
+            st.error(f"❌ Gagal membaca file. Error sistem: {e}")
+            st.info("💡 Tips: Pastikan file tidak sedang dibuka di Excel saat di-upload.")
