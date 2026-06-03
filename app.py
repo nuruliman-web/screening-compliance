@@ -1,59 +1,52 @@
 import streamlit as st
-from streamlit_option_menu import option_menu
+import pandas as pd
+from auth_utils import load_user_db
 
-# Import tabs
-import kyc_dashboard_tab
-import screening_tab
-import bulk_admin_tab
-import user_tab
-import log_tab
-import kegiatan_tracker
-import sipesat_tab  # <-- TAMBAHAN: Import menu baru SIPESAT
+# Import modul tab asli milikmu
+import screening_tab as sc
+import bulk_admin_tab as bat
+import kyc_dashboard_tab as kyc
+import kegiatan_tracker as kt
+import user_tab as ut
+import log_tab as lt
 
-# Check login status
-if 'logged_in' not in st.session_state or not st.session_state.logged_in:
-    st.switch_page("pages/login.py")
+# IMPORT TAB BARU SIPESAT
+import sipesat_tab as ss
 
-# Application entry point
-def main():
-    st.set_page_config(
-        page_title="Screening Compliance",
-        page_icon="🛡️",
-        layout="wide"
-    )
+st.set_page_config(page_title=\"Screening System\", layout=\"wide\", initial_sidebar_state=\"collapsed\")
 
-    # Top Menu Navigation
-    # Tambahkan "SIPESAT" ke dalam list menu dan berikan ikon "table"
-    selected = option_menu(
-        menu_title=None,
-        options=["KYC Dashboard", "Screening", "SIPESAT", "Bulk Admin", "User Management", "Activity Log", "Kegiatan Tracker"],
-        icons=["speedometer2", "shield-check", "table", "person-gear", "people", "journal-text", "list-check"],
-        menu_icon="cast",
-        default_index=0,
-        orientation="horizontal",
-        styles={
-            "container": {"padding": "0!important", "background-color": "#fafafa"},
-            "icon": {"color": "orange", "font-size": "16px"}, 
-            "nav-link": {"font-size": "14px", "text-align": "left", "margin":"0px", "--hover-color": "#eee"},
-            "nav-link-selected": {"background-color": "#02ab21"},
-        }
-    )
+def main_interface():
+    # Identitas Default
+    if 'user' not in st.session_state:
+        st.session_state['user'] = "Admin_System"
+    if 'role' not in st.session_state:
+        st.session_state['role'] = "Admin"
 
-    # Routing logic based on selected menu
-    if selected == "KYC Dashboard":
-        kyc_dashboard_tab.show()
-    elif selected == "Screening":
-        screening_tab.show()
-    elif selected == "SIPESAT":
-        sipesat_tab.show()  # <-- TAMBAHAN: Menampilkan halaman SIPESAT
-    elif selected == "Bulk Admin":
-        bulk_admin_tab.show()
-    elif selected == "User Management":
-        user_tab.show()
-    elif selected == "Activity Log":
-        log_tab.show()
-    elif selected == "Kegiatan Tracker":
-        kegiatan_tracker.show()
+    # Header
+    c1, c2 = st.columns([10, 2])
+    c1.markdown(f"👤 **Mode:** Direct Access | 🏷️ **Role:** {st.session_state['role']}")
+    if c2.button("🔄 Refresh App", use_container_width=True):
+        st.rerun()
+    
+    st.divider()
+    
+    # Load Data Utama
+    db_p, stats, total = sc.fetch_all_data()
+
+    # Navigasi Tab (Tambahkan "📊 SIPESAT" di dalam list ini)
+    tabs = st.tabs(["🔍 Single", "🚀 Bulk", "📊 KYC Dashboard", "📝 Log Kegiatan", "📊 SIPESAT", "👥 Users", "🕒 Admin Log"])
+    
+    # Jalankan fungsi sesuai tab masing-masing
+    with tabs[0]: sc.run_pencarian(st.session_state['user'], db_p, True)
+    with tabs[1]: bat.run_bulk_screening()
+    with tabs[2]: kyc.run_kyc_dashboard()
+    with tabs[3]: kt.run_kegiatan_tracker()
+    
+    # JALANKAN TAB BARU SIPESAT DI SINI
+    with tabs[4]: ss.run_sipesat()
+    
+    with tabs[5]: ut.run_user_management()
+    with tabs[6]: lt.run_log_admin(stats, total)
 
 if __name__ == "__main__":
-    main()
+    main_interface()
