@@ -9,6 +9,7 @@ import kyc_dashboard_tab as kyc
 import kegiatan_tracker as kt
 import user_tab as ut
 import log_tab as lt
+import chat_tab as chat
 
 # IMPORT TAB BARU SIPESAT
 import sipesat_tab as ss
@@ -33,20 +34,34 @@ def main_interface():
     # Load Data Utama
     db_p, stats, total = sc.fetch_all_data()
 
-    # Navigasi Tab (Menambahkan "📊 SIPESAT" di urutan kelima)
-    tabs = st.tabs(["🔍 Single", "🚀 Bulk", "📊 KYC Dashboard", "📝 Log Kegiatan", "📊 SIPESAT", "👥 Users", "🕒 Admin Log"])
-    
-    # Jalankan fungsi sesuai tab masing-masing
-    with tabs[0]: sc.run_pencarian(st.session_state['user'], db_p, True)
-    with tabs[1]: bat.run_bulk_screening()
-    with tabs[2]: kyc.run_kyc_dashboard()
-    with tabs[3]: kt.run_kegiatan_tracker()
-    
-    # JALANKAN TAB BARU SIPESAT DI SINI
-    with tabs[4]: ss.run_sipesat()
-    
-    with tabs[5]: ut.run_user_management()
-    with tabs[6]: lt.run_log_admin(stats, total)
+    # Navigasi Tab (menambahkan "📊 SIPESAT" dan "💬 Chat")
+tabs = st.tabs([
+    "🔍 Single",
+    "🚀 Bulk",
+    "📊 KYC Dashboard",
+    "📝 Log Kegiatan",
+    "📊 SIPESAT",
+    "💬 Chat",
+    "👥 Users",
+    "🕒 Admin Log"
+])
+
+with tabs[0]:
+    sc.run_pencarian(st.session_state['user'], db_p, True)
+with tabs[1]:
+    bat.run_bulk_screening()
+with tabs[2]:
+    kyc.run_kyc_dashboard()
+with tabs[3]:
+    kt.run_kegiatan_tracker()
+with tabs[4]:
+    ss.run_sipesat()
+with tabs[5]:
+    chat.run_chat()
+with tabs[6]:
+    ut.run_user_management()
+with tabs[7]:
+    lt.run_log_admin(stats, total)
 
 if __name__ == "__main__":
     main_interface()
