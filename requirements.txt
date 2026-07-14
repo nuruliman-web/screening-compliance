@@ -5,3 +5,4 @@ xlsxwriter
 thefuzz
 python-Levenshtein
 st-gsheets-connection
+openai
