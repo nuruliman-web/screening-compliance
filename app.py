@@ -17,65 +17,83 @@ import sipesat_tab as ss
 st.set_page_config(page_title="Screening System", layout="wide", initial_sidebar_state="collapsed")
 
 
-# --- Helper untuk popup chat via query param ---
 def render_chat_popup_if_requested():
-    params = st.experimental_get_query_params()
-    chat_on = params.get("chat", [None])[0] == "1"
+    # Robustly get query params across Streamlit versions
+    params = {}
+    try:
+        if hasattr(st, "experimental_get_query_params"):
+            params = st.experimental_get_query_params()
+        elif hasattr(st, "experimental_get_url_params"):
+            params = st.experimental_get_url_params()
+        else:
+            # fallback: try calling and catch AttributeError
+            params = st.experimental_get_query_params()
+    except Exception:
+        params = {}
 
-    # Floating chat icon (tampilan selalu)
+    def _get_param_value(d, k):
+        v = d.get(k)
+        if v is None:
+            return None
+        if isinstance(v, list):
+            return v[0]
+        return v
+
+    chat_on = _get_param_value(params, "chat") == "1"
+
     float_css = """
     <style>
     .floating-chat-button {
         position: fixed;
-        right: 20px;
-        bottom: 20px;
+        right: 18px;
+        bottom: 18px;
         z-index: 9999;
-        background: #006ee6;
+        background: #0b5fff;
         color: white;
-        padding: 12px 14px;
-        border-radius: 50px;
-        box-shadow: 0 4px 14px rgba(2,6,23,0.2);
+        width: 56px;
+        height: 56px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 28px;
+        box-shadow: 0 6px 20px rgba(2,6,23,0.2);
         text-decoration: none;
-        font-weight: 600;
+        font-weight: 700;
+        font-size: 20px;
     }
     .chat-popup-frame {
         position: fixed;
-        right: 20px;
-        bottom: 80px;
+        right: 18px;
+        bottom: 86px;
         width: 420px;
-        max-width: calc(100% - 40px);
+        max-width: calc(100% - 36px);
         height: 520px;
         background: white;
         border-radius: 12px;
-        box-shadow: 0 8px 32px rgba(2,6,23,0.12);
+        box-shadow: 0 10px 40px rgba(2,6,23,0.12);
         padding: 12px 16px;
         z-index: 10000;
         overflow: auto;
     }
-    .chat-close-link { float: right; font-size: 13px; }
+    .chat-close-link { float: right; font-size: 13px; color: #444; text-decoration: none; }
+    @media (max-width: 480px) {
+        .chat-popup-frame { right: 10px; left: 10px; bottom: 72px; width: auto; height: 60vh; }
+    }
     </style>
     """
     st.markdown(float_css, unsafe_allow_html=True)
 
-    # Tombol floating yang menambahkan query param ?chat=1
-    params_no = st.experimental_get_query_params()
-    # build url with chat=1
-    base_url = st.experimental_get_query_params()
-
-    # We cannot directly build URL easily; we'll use link that appends ?chat=1
-    current_page = st.experimental_get_query_params()
-    chat_open_url = "?chat=1"
-    chat_close_url = "?"
-
-    st.markdown(f"<a class=\"floating-chat-button\" href=\"{chat_open_url}\">💬 Chat</a>", unsafe_allow_html=True)
+    # Floating chat icon (always visible). Use a full URL if your app is served under a path.
+    st.markdown('<a class="floating-chat-button" href="?chat=1" title="Chat dengan AI">💬</a>', unsafe_allow_html=True)
 
     if chat_on:
         # Render popup container and call chat.run_chat() inside
-        st.markdown(f"<div class=\"chat-popup-frame\"> <a class=\"chat-close-link\" href=\"{chat_close_url}\">Tutup ✖</a></div>", unsafe_allow_html=True)
-        # Use an empty container placed at bottom-right using CSS trick: we will render chat UI into it by absolute positioning
-        # But Streamlit renders top-to-bottom; instead render the chat UI normally but it will visually overlay due to fixed-position CSS above
+        st.markdown('<div class="chat-popup-frame"><a class="chat-close-link" href="?">Tutup ✖</a></div>', unsafe_allow_html=True)
         st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-        chat.run_chat()
+        try:
+            chat.run_chat()
+        except Exception as e:
+            st.error(f"Gagal merender chat popup: {e}")
 
 
 def main_interface():
